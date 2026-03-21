@@ -1,20 +1,54 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>聊天房间 - 测试</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RiffChat 房间</title>
   <style>
-    body { background:#000; color:#fff; font-family:Arial, sans-serif; text-align:center; padding:150px; }
-    h1 { color:#4caf50; font-size:48px; margin-bottom:20px; }
-    p { font-size:24px; }
-    a { color:#ff4d4d; text-decoration:none; font-weight:bold; }
-    a:hover { text-decoration:underline; }
+    body { margin:0; background:#000; color:#fff; font-family:Arial; }
+    #videos { display:flex; height:100vh; }
+    video { flex:1; object-fit:cover; }
+    #local { border: 4px solid #ff4d4d; }
+    #controls { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); padding:15px; border-radius:12px; }
+    button { padding:10px 20px; margin:0 10px; font-size:16px; cursor:pointer; }
   </style>
+
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
-  <h1>匹配成功！这里是聊天房间</h1>
-  <p>摄像头和视频功能即将上线...</p>
-  <p><a href="/">← 返回匹配页面</a></p>
+
+  <div id="videos">
+    <video id="local" autoplay playsinline muted></video>
+    <video id="remote" autoplay playsinline></video>
+  </div>
+
+  <div id="controls">
+    <button onclick="window.history.back()">← 返回匹配</button>
+    <button style="background:#e63939;" onclick="endCall()">结束通话</button>
+  </div>
+
+  <script>
+    let localStream = null;
+
+    async function startLocalVideo() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('local').srcObject = localStream;
+        console.log("本地视频开启成功");
+      } catch (err) {
+        alert("无法打开摄像头/麦克风：" + err.message + "\n请在浏览器设置中允许权限，然后刷新页面。");
+      }
+    }
+
+    function endCall() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      window.history.back();
+    }
+
+    // 启动本地视频
+    startLocalVideo();
+  </script>
 </body>
 </html>
