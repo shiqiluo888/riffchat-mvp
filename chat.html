@@ -5,61 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RiffChat 房间</title>
   <style>
-    body { 
-      margin: 0; 
-      background: #000; 
-      color: #fff; 
-      font-family: Arial, sans-serif; 
-      overflow: hidden; 
-    }
-    #main { 
-      display: flex; 
-      height: 100vh; 
-    }
-    .video-container { 
-      flex: 1; 
-      position: relative; 
-      background: #111; 
-    }
-    video { 
-      width: 100%; 
-      height: 100%; 
-      object-fit: cover; 
-    }
-    #local { 
-      border: 4px solid #ff4d4d; 
-    }
-    #remote { 
-      border: 4px solid #4caf50; 
-    }
+    body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
+    #main { display:flex; height:100vh; }
+    .video-box { flex:1; position:relative; background:#111; }
+    video { width:100%; height:100%; object-fit:cover; }
+    #local { border: 5px solid #ff4d4d; }
+    #remote { border: 5px solid #4caf50; }
     #bottom-bar { 
-      position: absolute; 
-      bottom: 0; 
-      left: 0; 
-      right: 0; 
-      height: 80px; 
-      background: rgba(0, 0, 0, 0.85); 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
-      gap: 20px; 
-      z-index: 10; 
+      position:absolute; bottom:0; left:0; right:0; height:90px; 
+      background:rgba(0,0,0,0.9); display:flex; align-items:center; 
+      justify-content:center; gap:30px; z-index:100; 
     }
     button { 
-      padding: 12px 28px; 
-      font-size: 16px; 
-      cursor: pointer; 
-      border: none; 
-      border-radius: 8px; 
+      padding:14px 32px; font-size:17px; cursor:pointer; border:none; border-radius:10px; 
     }
-    .back-btn { background: #555; color: white; }
-    .end-btn { background: #e63939; color: white; }
+    .back-btn { background:#555; }
+    .end-btn { background:#e63939; }
   </style>
 
-  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -75,9 +40,9 @@
     });
 
     window.db = getDatabase(app);
-    window.firebaseSet = set;
-    window.firebaseOnValue = onValue;
-    window.firebaseRef = ref;
+    window.fbSet = set;
+    window.fbOnValue = onValue;
+    window.fbRef = ref;
 
     console.log("✅ Firebase 初始化成功");
   </script>
@@ -86,17 +51,17 @@
 
   <div id="main">
     <!-- 左边：对方视频 -->
-    <div class="video-container">
+    <div class="video-box">
       <video id="remote" autoplay playsinline></video>
     </div>
 
     <!-- 右边：自己视频 -->
-    <div class="video-container">
+    <div class="video-box">
       <video id="local" autoplay playsinline muted></video>
     </div>
   </div>
 
-  <!-- 底部控制栏（留空间给以后功能） -->
+  <!-- 底部栏 -->
   <div id="bottom-bar">
     <button class="back-btn" onclick="window.history.back()">← 返回匹配</button>
     <button class="end-btn" onclick="endCall()">结束通话</button>
@@ -126,12 +91,12 @@
       window.history.back();
     }
 
-    async function initPeer() {
+    function initPeer() {
       peer = new Peer();
 
       peer.on('open', (id) => {
         console.log("我的 Peer ID:", id);
-        window.firebaseSet(window.firebaseRef(window.db, `rooms/${roomId}/peers/${id}`), {
+        window.fbSet(window.fbRef(window.db, `rooms/${roomId}/peers/${id}`), {
           peerId: id,
           joined: Date.now()
         });
@@ -146,7 +111,7 @@
         });
       });
 
-      window.firebaseOnValue(window.firebaseRef(window.db, `rooms/${roomId}/peers`), (snapshot) => {
+      window.fbOnValue(window.fbRef(window.db, `rooms/${roomId}/peers`), (snapshot) => {
         const peers = snapshot.val() || {};
         Object.values(peers).forEach(p => {
           if (p.peerId && p.peerId !== peer.id && !remotePeerId) {
