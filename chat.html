@@ -24,13 +24,10 @@
   </style>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-
-  <!-- Firebase - 使用全局暴露方式 -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
   <script>
-    // Firebase 初始化（使用兼容模式，更稳定）
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -99,7 +96,7 @@
       });
 
       peer.on('call', (call) => {
-        console.log("收到对方呼叫");
+        console.log("收到对方呼叫，正在应答...");
         call.answer(localStream);
         call.on('stream', (stream) => {
           document.getElementById('remote').srcObject = stream;
@@ -107,6 +104,7 @@
         });
       });
 
+      // 监听房间其他人
       db.ref(`rooms/${roomId}/peers`).on('value', (snapshot) => {
         const peers = snapshot.val() || {};
         Object.values(peers).forEach(p => {
