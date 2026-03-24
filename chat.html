@@ -41,7 +41,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    console.log("✅ Firebase 初始化成功 (兼容模式)");
+    console.log("✅ Firebase 初始化成功");
   </script>
 </head>
 <body>
@@ -96,7 +96,7 @@
       });
 
       peer.on('call', (call) => {
-        console.log("收到对方呼叫，正在应答...");
+        console.log("收到对方呼叫");
         call.answer(localStream);
         call.on('stream', (stream) => {
           document.getElementById('remote').srcObject = stream;
@@ -104,9 +104,11 @@
         });
       });
 
-      // 监听房间其他人
+      // 修复后的监听方式
       db.ref(`rooms/${roomId}/peers`).on('value', (snapshot) => {
         const peers = snapshot.val() || {};
+        console.log("房间当前 Peer 数量:", Object.keys(peers).length);
+
         Object.values(peers).forEach(p => {
           if (p.peerId && p.peerId !== peer.id && !remotePeerId) {
             remotePeerId = p.peerId;
@@ -121,7 +123,6 @@
       });
     }
 
-    // 启动
     startLocalVideo();
     initPeer();
   </script>
