@@ -9,24 +9,22 @@
     #container { position:relative; width:100vw; height:100vh; }
     #remote { width:100%; height:100%; object-fit:cover; background:#111; }
     #local { 
-      position:absolute; bottom:20px; right:20px; width:240px; height:180px; 
-      border:4px solid #ff4d4d; border-radius:12px; object-fit:cover; 
-      box-shadow:0 0 15px rgba(255,77,77,0.6); 
+      position:absolute; bottom:20px; right:20px; width:260px; height:200px; 
+      border:5px solid #ff4d4d; border-radius:12px; object-fit:cover; 
+      box-shadow:0 0 20px rgba(255,77,77,0.8); 
     }
     #controls { 
       position:absolute; bottom:20px; left:50%; transform:translateX(-50%); 
-      background:rgba(0,0,0,0.75); padding:10px 20px; border-radius:12px; 
+      background:rgba(0,0,0,0.8); padding:12px 25px; border-radius:12px; 
       display:flex; gap:15px; 
     }
-    button { padding:10px 20px; font-size:16px; cursor:pointer; border:none; border-radius:8px; }
+    button { padding:12px 24px; font-size:16px; cursor:pointer; border:none; border-radius:8px; }
     .back-btn { background:#555; }
     .end-btn { background:#e63939; }
   </style>
 
-  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -38,7 +36,7 @@
       storageBucket: "riffchat-96b69.firebasestorage.app",
       messagingSenderId: "597645980095",
       appId: "1:597645980095:web:607eefd061c062fed7710a",
-      databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"   // ← 改成你的真实 URL
+      databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"
     });
 
     window.db = getDatabase(app);
@@ -97,7 +95,7 @@
       });
 
       peer.on('call', (call) => {
-        console.log("收到对方呼叫");
+        console.log("收到对方呼叫，正在应答...");
         call.answer(localStream);
         call.on('stream', (stream) => {
           document.getElementById('remote').srcObject = stream;
@@ -105,7 +103,6 @@
         });
       });
 
-      // 监听房间里其他人的 Peer ID
       window.firebaseOnValue(window.firebaseRef(window.db, `rooms/${roomId}/peers`), (snapshot) => {
         const peers = snapshot.val() || {};
         Object.values(peers).forEach(p => {
@@ -122,7 +119,6 @@
       });
     }
 
-    // 启动
     startLocalVideo();
     initPeer();
   </script>
