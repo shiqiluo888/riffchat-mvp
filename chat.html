@@ -19,8 +19,8 @@
     button { 
       padding:14px 32px; font-size:17px; cursor:pointer; border:none; border-radius:10px; 
     }
-    .back-btn { background:#555; }
-    .end-btn { background:#e63939; }
+    .back-btn { background:#555; color:white; }
+    .end-btn { background:#e63939; color:white; }
   </style>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -61,7 +61,7 @@
     </div>
   </div>
 
-  <!-- 底部栏 -->
+  <!-- 底部栏（以后放音乐同步、聊天等功能） -->
   <div id="bottom-bar">
     <button class="back-btn" onclick="window.history.back()">← 返回匹配</button>
     <button class="end-btn" onclick="endCall()">结束通话</button>
@@ -96,6 +96,7 @@
 
       peer.on('open', (id) => {
         console.log("我的 Peer ID:", id);
+        // 存入 Firebase
         window.fbSet(window.fbRef(window.db, `rooms/${roomId}/peers/${id}`), {
           peerId: id,
           joined: Date.now()
@@ -103,7 +104,7 @@
       });
 
       peer.on('call', (call) => {
-        console.log("收到对方呼叫");
+        console.log("收到对方呼叫，正在应答...");
         call.answer(localStream);
         call.on('stream', (stream) => {
           document.getElementById('remote').srcObject = stream;
@@ -111,6 +112,7 @@
         });
       });
 
+      // 监听房间其他人
       window.fbOnValue(window.fbRef(window.db, `rooms/${roomId}/peers`), (snapshot) => {
         const peers = snapshot.val() || {};
         Object.values(peers).forEach(p => {
