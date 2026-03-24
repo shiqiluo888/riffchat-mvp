@@ -96,7 +96,7 @@
       });
 
       peer.on('call', (call) => {
-        console.log("收到对方呼叫");
+        console.log("收到对方呼叫，正在应答...");
         call.answer(localStream);
         call.on('stream', (stream) => {
           document.getElementById('remote').srcObject = stream;
@@ -104,15 +104,17 @@
         });
       });
 
-      // 修复后的监听方式
-      db.ref(`rooms/${roomId}/peers`).on('value', (snapshot) => {
+      // 简化后的监听（最稳方式）
+      const peersRef = db.ref(`rooms/${roomId}/peers`);
+      peersRef.on('value', (snapshot) => {
         const peers = snapshot.val() || {};
         console.log("房间当前 Peer 数量:", Object.keys(peers).length);
 
         Object.values(peers).forEach(p => {
-          if (p.peerId && p.peerId !== peer.id && !remotePeerId) {
+          if (p && p.peerId && p.peerId !== peer.id && !remotePeerId) {
             remotePeerId = p.peerId;
             console.log("发现对方 Peer ID:", remotePeerId);
+
             const call = peer.call(remotePeerId, localStream);
             call.on('stream', (stream) => {
               document.getElementById('remote').srcObject = stream;
@@ -123,6 +125,7 @@
       });
     }
 
+    // 启动
     startLocalVideo();
     initPeer();
   </script>
