@@ -14,25 +14,26 @@
     .warning { color: #ffcc00; font-weight: bold; margin: 20px; }
   </style>
 
+  <!-- Firebase 初始化（已修复） -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, push, onValue, remove, query, orderByChild, limitToFirst } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-    window.firebaseApp = initializeApp({
+    const app = initializeApp({
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
       projectId: "riffchat-96b69",
       storageBucket: "riffchat-96b69.firebasestorage.app",
       messagingSenderId: "597645980095",
       appId: "1:597645980095:web:607eefd061c062fed7710a",
-      databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"   // 改成你的真实 RTDB URL！！！
+      databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"   // ← 如果你的URL不一样，请在这里改成真实URL
     });
 
-    window.db = getDatabase(window.firebaseApp);
+    window.db = getDatabase(app);
+    console.log("✅ Firebase 初始化成功");
   </script>
 </head>
 <body>
-
   <h1>🎸 RiffChat MVP</h1>
   <p class="warning">警告：本页面需要摄像头/麦克风权限，仅限18+测试使用。请勿分享不当内容。</p>
 
@@ -57,31 +58,44 @@
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
-      myQueueRef = push(ref(window.db, `queue/${music}`), {
-        joined: Date.now(),
-        status: "waiting"
-      });
+      try {
+        myQueueRef = push(ref(window.db, `queue/${music}`), {
+          joined: Date.now(),
+          status: "waiting"
+        });
 
-      const myId = myQueueRef.key;
+        const myId = myQueueRef.key;
+        console.log("✅ 加入队列成功，ID:", myId);
 
-      const q = query(ref(window.db, `queue/${music}`), orderByChild("joined"), limitToFirst(2));
-      onValue(q, (snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
+        const q = query(ref(window.db, `queue/${music}`), orderByChild("joined"), limitToFirst(2));
 
-        const keys = Object.keys(data);
-        if (keys.length >= 2) {
-          const otherKey = keys.find(k => k !== myId);
-          if (otherKey) {
-            const roomId = [myId, otherKey].sort().join('_');
-            remove(ref(window.db, `queue/${music}/${myId}`));
-            document.getElementById("status").innerText = "匹配成功！进入房间...";
-            setTimeout(() => {
-              window.location.href = `/chat.html?room=${roomId}&style=${music}`;
-            }, 1500);
+        onValue(q, (snapshot) => {
+          const data = snapshot.val();
+          if (!data) return;
+
+          const keys = Object.keys(data);
+          console.log("当前队列人数:", keys.length);
+
+          if (keys.length >= 2) {
+            const otherKey = keys.find(k => k !== myId);
+            if (otherKey) {
+              const roomId = [myId, otherKey].sort().join('_');
+
+              remove(ref(window.db, `queue/${music}/${myId}`));
+
+              document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
+              console.log("🎉 匹配成功，房间ID:", roomId);
+
+              setTimeout(() => {
+                window.location.href = `/chat.html?room=${roomId}&style=${music}`;
+              }, 1500);
+            }
           }
-        }
-      });
+        });
+      } catch (error) {
+        console.error("匹配出错:", error);
+        document.getElementById("status").innerText = "匹配失败，请检查控制台";
+      }
     }
 
     function cancelMatching() {
