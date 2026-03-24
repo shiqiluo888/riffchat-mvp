@@ -6,24 +6,21 @@
   <title>RiffChat 房间</title>
   <style>
     body { margin:0; background:#000; color:#fff; font-family:Arial; overflow:hidden; }
-    #videos { display:flex; height:100vh; }
-    video { flex:1; object-fit:cover; background:#111; }
-    #local { border: 4px solid #ff4d4d; }
-    #remote { border: 4px solid #4caf50; }
+    #container { position:relative; width:100vw; height:100vh; }
+    #remote { width:100%; height:100%; object-fit:cover; background:#111; }
+    #local { position:absolute; bottom:20px; right:20px; width:240px; height:180px; 
+             border:4px solid #ff4d4d; border-radius:12px; object-fit:cover; box-shadow:0 0 15px rgba(255,77,77,0.6); }
     #controls { 
       position:absolute; bottom:20px; left:50%; transform:translateX(-50%); 
-      background:rgba(0,0,0,0.7); padding:12px 20px; border-radius:12px; 
-      display:flex; gap:15px; 
+      background:rgba(0,0,0,0.75); padding:10px 20px; border-radius:12px; display:flex; gap:15px;
     }
     button { padding:10px 20px; font-size:16px; cursor:pointer; border:none; border-radius:8px; }
     .back-btn { background:#555; }
     .end-btn { background:#e63939; }
   </style>
 
-  <!-- PeerJS -->
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
@@ -43,9 +40,9 @@
 </head>
 <body>
 
-  <div id="videos">
-    <video id="local" autoplay playsinline muted></video>
+  <div id="container">
     <video id="remote" autoplay playsinline></video>
+    <video id="local" autoplay playsinline muted></video>
   </div>
 
   <div id="controls">
@@ -56,76 +53,58 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room');
-    const myStyle = urlParams.get('style') || 'rock';
 
     let localStream = null;
     let peer = null;
     let remotePeerId = null;
 
-    // 获取本地视频
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('local').srcObject = localStream;
         console.log("本地视频开启成功");
       } catch (err) {
-        alert("无法打开摄像头/麦克风: " + err.message);
+        alert("摄像头权限失败: " + err.message);
       }
     }
 
-    // 结束通话
     function endCall() {
-      if (localStream) localStream.getTracks().forEach(track => track.stop());
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
       if (peer) peer.destroy();
       window.history.back();
     }
 
-    // ==================== WebRTC 核心逻辑 ====================
     async function initPeer() {
-      peer = new Peer();   // PeerJS 自动生成 ID
+      peer = new Peer();
 
       peer.on('open', (id) => {
         console.log("我的 Peer ID:", id);
-        // 把自己的 Peer ID 存到 Firebase room
-        set(ref(window.db, `rooms/${roomId}/peers/${id}`), {
-          peerId: id,
-          joined: Date.now()
-        });
+        set(ref(window.db, `rooms/${roomId}/peers/${id}`), { peerId: id, joined: Date.now() });
       });
 
-      // 收到对方呼叫
       peer.on('call', (call) => {
         console.log("收到对方呼叫");
         call.answer(localStream);
-        call.on('stream', (remoteStream) => {
-          document.getElementById('remote').srcObject = remoteStream;
-          console.log("✅ 已收到对方视频流！");
+        call.on('stream', (stream) => {
+          document.getElementById('remote').srcObject = stream;
+          console.log("✅ 成功收到对方视频流！");
         });
       });
 
-      // 监听房间里其他人的 Peer ID
+      // 监听房间其他人
       onValue(ref(window.db, `rooms/${roomId}/peers`), (snapshot) => {
-        const peers = snapshot.val();
-        if (!peers) return;
-
-        Object.keys(peers).forEach(key => {
-          const p = peers[key];
+        const peers = snapshot.val() || {};
+        Object.values(peers).forEach(p => {
           if (p.peerId && p.peerId !== peer.id && !remotePeerId) {
             remotePeerId = p.peerId;
             console.log("发现对方 Peer ID:", remotePeerId);
-            callRemote(remotePeerId);
+            const call = peer.call(remotePeerId, localStream);
+            call.on('stream', (stream) => {
+              document.getElementById('remote').srcObject = stream;
+              console.log("✅ 成功连接对方视频！");
+            });
           }
         });
-      });
-    }
-
-    function callRemote(remoteId) {
-      if (!localStream || !peer) return;
-      console.log("正在呼叫对方:", remoteId);
-      const call = peer.call(remoteId, localStream);
-      call.on('stream', (remoteStream) => {
-        document.getElementById('remote').srcObject = remoteStream;
-        console.log("✅ 成功连接对方视频！");
       });
     }
 
