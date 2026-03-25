@@ -14,12 +14,14 @@
     #bottom-bar { 
       position:absolute; bottom:0; left:0; right:0; height:90px; 
       background:rgba(0,0,0,0.9); display:flex; align-items:center; 
-      justify-content:center; gap:30px; z-index:100; 
+      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
     }
     button { 
-      padding:14px 32px; font-size:17px; cursor:pointer; border:none; border-radius:10px; 
+      padding:12px 24px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
+      min-width: 120px;
     }
-    .back-btn { background:#555; color:white; }
+    .back-btn { background:#555; }
+    .next-btn { background:#ff9800; color:white; }
     .end-btn { background:#e63939; color:white; }
   </style>
 
@@ -40,7 +42,6 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    console.log("✅ Firebase 初始化成功");
   </script>
 </head>
 <body>
@@ -55,7 +56,8 @@
   </div>
 
   <div id="bottom-bar">
-    <button class="back-btn" onclick="window.history.back()">← 返回匹配</button>
+    <button class="back-btn" onclick="goBack()">← 返回匹配</button>
+    <button class="next-btn" onclick="goNext()">下一个</button>
     <button class="end-btn" onclick="endCall()">结束通话</button>
   </div>
 
@@ -66,28 +68,45 @@
     let localStream = null;
     let peer = null;
     let remotePeerId = null;
-    let retryCount = 0;
 
-    // 提前请求媒体权限
     async function startLocalVideo() {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
-        });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('local').srcObject = localStream;
         console.log("本地视频开启成功");
-        return true;
       } catch (err) {
-        alert("摄像头/麦克风权限被拒绝或不可用: " + err.message + "\n请刷新页面并允许权限");
-        return false;
+        alert("无法打开摄像头/麦克风: " + err.message);
       }
     }
 
+    function clearRemoteVideo() {
+      const remoteVideo = document.getElementById('remote');
+      if (remoteVideo.srcObject) {
+        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+        remoteVideo.srcObject = null;
+      }
+      console.log("对方视频已清空（黑屏）");
+    }
+
     function endCall() {
+      clearRemoteVideo();
       if (localStream) localStream.getTracks().forEach(t => t.stop());
       if (peer) peer.destroy();
       window.history.back();
+    }
+
+    function goBack() {
+      endCall();
+    }
+
+    function goNext() {
+      console.log("用户点击下一个，准备重新匹配...");
+      clearRemoteVideo();
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      if (peer) peer.destroy();
+      
+      // 跳转回匹配页面
+      window.location.href = "/";
     }
 
     function initPeer() {
@@ -110,41 +129,25 @@
         });
       });
 
-      // 轮询发现对方
-      const checkInterval = setInterval(() => {
-        if (remotePeerId || retryCount > 15) {
-          clearInterval(checkInterval);
-          return;
-        }
-
-        db.ref(`rooms/${roomId}/peers`).once('value', (snapshot) => {
-          const peers = snapshot.val() || {};
-          Object.values(peers).forEach(p => {
-            if (p && p.peerId && p.peerId !== peer.id && !remotePeerId) {
-              remotePeerId = p.peerId;
-              console.log("发现对方 Peer ID:", remotePeerId);
-              const call = peer.call(remotePeerId, localStream);
-              call.on('stream', (stream) => {
-                document.getElementById('remote').srcObject = stream;
-                console.log("✅ 成功连接对方视频！");
-              });
-              call.on('error', (err) => console.error("呼叫错误:", err));
-            }
-          });
+      db.ref(`rooms/${roomId}/peers`).on('value', (snapshot) => {
+        const peers = snapshot.val() || {};
+        Object.values(peers).forEach(p => {
+          if (p && p.peerId && p.peerId !== peer.id && !remotePeerId) {
+            remotePeerId = p.peerId;
+            console.log("发现对方 Peer ID:", remotePeerId);
+            const call = peer.call(remotePeerId, localStream);
+            call.on('stream', (stream) => {
+              document.getElementById('remote').srcObject = stream;
+              console.log("✅ 成功连接对方视频！");
+            });
+          }
         });
-        retryCount++;
-      }, 1200);   // 每1.2秒检查一次
+      });
     }
 
-    // 启动流程
-    async function start() {
-      const hasStream = await startLocalVideo();
-      if (hasStream) {
-        initPeer();
-      }
-    }
-
-    start();
+    // 启动
+    startLocalVideo();
+    initPeer();
   </script>
 </body>
 </html>
