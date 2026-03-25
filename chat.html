@@ -14,11 +14,10 @@
     #bottom-bar { 
       position:absolute; bottom:0; left:0; right:0; height:90px; 
       background:rgba(0,0,0,0.9); display:flex; align-items:center; 
-      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
+      justify-content:center; gap:15px; z-index:100; 
     }
     button { 
-      padding:12px 24px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
-      min-width: 120px;
+      padding:14px 28px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
     }
     .back-btn { background:#555; }
     .next-btn { background:#ff9800; color:white; }
@@ -79,18 +78,21 @@
       }
     }
 
-    function clearRemoteVideo() {
+    function stopAllStreams() {
       const remoteVideo = document.getElementById('remote');
       if (remoteVideo.srcObject) {
         remoteVideo.srcObject.getTracks().forEach(track => track.stop());
         remoteVideo.srcObject = null;
       }
-      console.log("对方视频已清空（黑屏）");
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      console.log("所有视频流已停止，黑屏重置");
     }
 
     function endCall() {
-      clearRemoteVideo();
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      stopAllStreams();
       if (peer) peer.destroy();
       window.history.back();
     }
@@ -100,12 +102,9 @@
     }
 
     function goNext() {
-      console.log("用户点击下一个，准备重新匹配...");
-      clearRemoteVideo();
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      stopAllStreams();
       if (peer) peer.destroy();
-      
-      // 跳转回匹配页面
+      console.log("用户点击下一个，跳转重新匹配...");
       window.location.href = "/";
     }
 
@@ -124,7 +123,9 @@
         console.log("收到对方呼叫");
         call.answer(localStream);
         call.on('stream', (stream) => {
-          document.getElementById('remote').srcObject = stream;
+          const remoteVideo = document.getElementById('remote');
+          if (remoteVideo.srcObject) remoteVideo.srcObject.getTracks().forEach(t => t.stop());
+          remoteVideo.srcObject = stream;
           console.log("✅ 成功收到对方视频流！");
         });
       });
@@ -137,7 +138,9 @@
             console.log("发现对方 Peer ID:", remotePeerId);
             const call = peer.call(remotePeerId, localStream);
             call.on('stream', (stream) => {
-              document.getElementById('remote').srcObject = stream;
+              const remoteVideo = document.getElementById('remote');
+              if (remoteVideo.srcObject) remoteVideo.srcObject.getTracks().forEach(t => t.stop());
+              remoteVideo.srcObject = stream;
               console.log("✅ 成功连接对方视频！");
             });
           }
