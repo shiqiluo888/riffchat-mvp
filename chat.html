@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RiffChat 房间 - 极简版</title>
+  <title>RiffChat 房间 - 最终测试版</title>
   <style>
     body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
     #main { display:flex; height:100vh; }
@@ -14,7 +14,7 @@
     #bottom-bar { 
       position:absolute; bottom:0; left:0; right:0; height:110px; 
       background:rgba(0,0,0,0.95); display:flex; align-items:center; 
-      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
+      justify-content:center; gap:12px; z-index:100; flex-wrap:wrap; 
     }
     button { 
       padding:14px 30px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
@@ -56,58 +56,59 @@
       }
     }
 
-    function stopAllStreams() {
-      if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-        localStream = null;
-      }
+    function clearRemoteVideo() {
       const remoteVideo = document.getElementById('remote');
       if (remoteVideo.srcObject) {
-        remoteVideo.srcObject.getTracks().forEach(t => t.stop());
+        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
         remoteVideo.srcObject = null;
       }
     }
 
     function endCall() {
-      stopAllStreams();
+      clearRemoteVideo();
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
       if (peer) peer.destroy();
       window.history.back();
     }
 
     function goNext() {
-      stopAllStreams();
+      clearRemoteVideo();
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
       if (peer) peer.destroy();
       window.location.href = "/";
     }
 
     function manualCall() {
       const otherId = prompt("请输入对方的 Peer ID（对方控制台会显示）:");
-      if (!otherId) return;
+      if (!otherId || !localStream) {
+        alert("请输入有效的 Peer ID");
+        return;
+      }
 
       console.log("手动呼叫对方:", otherId);
+      clearRemoteVideo();   // 先清空旧流
+
       const call = peer.call(otherId, localStream);
       call.on('stream', (stream) => {
-        stopAllStreams(); // 关键：先清空旧流
+        clearRemoteVideo();
         document.getElementById('remote').srcObject = stream;
         console.log("✅ 手动连接成功！对方视频已显示");
       });
-      call.on('error', (err) => console.error("呼叫错误:", err));
     }
 
-    // 初始化
     function initPeer() {
       peer = new Peer();
 
       peer.on('open', (id) => {
         console.log("我的 Peer ID:", id);
-        alert("你的 Peer ID 是: " + id + "\n请复制发给对方，让对方点击 '手动输入对方 Peer ID' 并输入这个 ID");
+        alert("你的 Peer ID 是: " + id + "\n请复制给对方，让对方点击 '手动输入对方 Peer ID' 并输入");
       });
 
       peer.on('call', (call) => {
         console.log("收到对方呼叫");
         call.answer(localStream);
         call.on('stream', (stream) => {
-          stopAllStreams();
+          clearRemoteVideo();
           document.getElementById('remote').srcObject = stream;
           console.log("✅ 收到对方视频流！");
         });
