@@ -111,7 +111,7 @@
       console.log("手动呼叫对方:", otherId);
       const call = peer.call(otherId, localStream);
       call.on('stream', (stream) => {
-        stopRemoteStream();
+        stopRemoteStream();   // 关键：先停止旧流
         document.getElementById('remote').srcObject = stream;
         console.log("✅ 手动连接成功！收到对方视频流");
       });
@@ -132,13 +132,13 @@
         console.log("收到对方呼叫");
         call.answer(localStream);
         call.on('stream', (stream) => {
-          stopRemoteStream();
+          stopRemoteStream();   // 关键修复
           document.getElementById('remote').srcObject = stream;
           console.log("✅ 成功收到对方视频流！");
         });
       });
 
-      // 自动尝试发现对方（每1.5秒检查一次）
+      // 自动发现对方
       setInterval(() => {
         if (remotePeerId) return;
 
