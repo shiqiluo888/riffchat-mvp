@@ -8,21 +8,26 @@
     body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
     #main { display:flex; height:100vh; }
     .video-box { flex:1; position:relative; background:#111; }
-    video { width:100%; height:100%; object-fit:cover; }
-    #local { border: 4px solid #ff4d4d; position:absolute; bottom:20px; right:20px; width:280px; height:210px; border-radius:12px; box-shadow:0 0 20px rgba(255,77,77,0.6); }
-    #remote { border: 4px solid #4caf50; }
+    video { 
+      width:100%; 
+      height:100%; 
+      object-fit:cover; 
+      background:#000; 
+    }
+    #local { border: 6px solid #ff4d4d; }
+    #remote { border: 6px solid #4caf50; }
     #bottom-bar { 
-      position:absolute; bottom:0; left:0; right:0; height:80px; 
-      background:rgba(0,0,0,0.85); display:flex; align-items:center; 
-      justify-content:center; gap:20px; z-index:100; 
+      position:absolute; bottom:0; left:0; right:0; height:100px; 
+      background:rgba(0,0,0,0.9); display:flex; align-items:center; 
+      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
     }
     button { 
-      padding:12px 28px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
+      padding:14px 28px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
     }
-    .manual-btn { background:#2196F3; color:white; }
+    .manual-btn { background:#2196F3; color:white; font-weight:bold; }
+    .refresh-btn { background:#4caf50; color:white; }
     .next-btn { background:#ff9800; color:white; }
     .end-btn { background:#e63939; color:white; }
-    .refresh-btn { background:#4caf50; color:white; }
   </style>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -40,23 +45,21 @@
 
   <div id="bottom-bar">
     <button onclick="window.history.back()">← 返回匹配</button>
-    <button class="manual-btn" onclick="manualCall()">手动输入 Peer ID</button>
+    <button class="manual-btn" onclick="manualCall()">手动输入对方 Peer ID</button>
     <button class="refresh-btn" onclick="refreshRemote()">刷新对方视频</button>
     <button class="next-btn" onclick="goNext()">下一个</button>
     <button class="end-btn" onclick="endCall()">结束通话</button>
   </div>
 
   <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('room');
-
     let localStream = null;
     let peer = null;
 
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        document.getElementById('local').srcObject = localStream;
+        const localVideo = document.getElementById('local');
+        localVideo.srcObject = localStream;
         console.log("本地视频开启成功");
       } catch (err) {
         alert("无法打开摄像头/麦克风: " + err.message);
@@ -69,6 +72,12 @@
         remoteVideo.srcObject.getTracks().forEach(track => track.stop());
         remoteVideo.srcObject = null;
       }
+    }
+
+    function refreshRemote() {
+      stopRemoteStream();
+      console.log("手动刷新对方视频...");
+      alert("请让对方也点击一次 '刷新对方视频' 按钮");
     }
 
     function endCall() {
@@ -85,12 +94,6 @@
       window.location.href = "/";
     }
 
-    function refreshRemote() {
-      stopRemoteStream();
-      console.log("手动刷新对方视频...");
-      alert("如果对方已连接，请让对方也点击刷新按钮");
-    }
-
     function manualCall() {
       const otherId = prompt("请输入对方的 Peer ID（对方控制台会显示）:");
       if (!otherId || !localStream) {
@@ -104,7 +107,10 @@
       const call = peer.call(otherId, localStream);
       call.on('stream', (stream) => {
         stopRemoteStream();
-        document.getElementById('remote').srcObject = stream;
+        const remoteVideo = document.getElementById('remote');
+        remoteVideo.srcObject = stream;
+        // 强制刷新视频元素
+        remoteVideo.load();
         console.log("✅ 手动连接成功！对方视频已显示");
       });
     }
@@ -122,7 +128,9 @@
         call.answer(localStream);
         call.on('stream', (stream) => {
           stopRemoteStream();
-          document.getElementById('remote').srcObject = stream;
+          const remoteVideo = document.getElementById('remote');
+          remoteVideo.srcObject = stream;
+          remoteVideo.load();   // 强制刷新
           console.log("✅ 收到对方视频流！");
         });
       });
