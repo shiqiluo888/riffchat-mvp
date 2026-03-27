@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RiffChat 房间</title>
+  <title>RiffChat 房间 - 灰色修复版</title>
   <style>
     body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
     #main { display:flex; height:100vh; }
-    .video-box { flex:1; position:relative; background:#111; }
+    .video-box { flex:1; position:relative; background:#000; }
     video { 
       width:100%; 
       height:100%; 
@@ -58,8 +58,7 @@
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const localVideo = document.getElementById('local');
-        localVideo.srcObject = localStream;
+        document.getElementById('local').srcObject = localStream;
         console.log("本地视频开启成功");
       } catch (err) {
         alert("无法打开摄像头/麦克风: " + err.message);
@@ -74,8 +73,19 @@
       }
     }
 
-    function refreshRemote() {
+    function forceRefreshVideo(stream) {
+      const remoteVideo = document.getElementById('remote');
       stopRemoteStream();
+      remoteVideo.srcObject = null;
+      setTimeout(() => {
+        remoteVideo.srcObject = stream;
+        remoteVideo.load();
+        remoteVideo.play().catch(e => console.log("play error", e));
+        console.log("✅ 已强制刷新远程视频画面");
+      }, 150);
+    }
+
+    function refreshRemote() {
       console.log("手动刷新对方视频...");
       alert("请让对方也点击一次 '刷新对方视频' 按钮");
     }
@@ -106,12 +116,8 @@
 
       const call = peer.call(otherId, localStream);
       call.on('stream', (stream) => {
-        stopRemoteStream();
-        const remoteVideo = document.getElementById('remote');
-        remoteVideo.srcObject = stream;
-        // 强制刷新视频元素
-        remoteVideo.load();
-        console.log("✅ 手动连接成功！对方视频已显示");
+        forceRefreshVideo(stream);
+        console.log("✅ 手动连接成功！");
       });
     }
 
@@ -127,16 +133,12 @@
         console.log("收到对方呼叫");
         call.answer(localStream);
         call.on('stream', (stream) => {
-          stopRemoteStream();
-          const remoteVideo = document.getElementById('remote');
-          remoteVideo.srcObject = stream;
-          remoteVideo.load();   // 强制刷新
+          forceRefreshVideo(stream);
           console.log("✅ 收到对方视频流！");
         });
       });
     }
 
-    // 启动
     startLocalVideo();
     initPeer();
   </script>
