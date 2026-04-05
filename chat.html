@@ -12,16 +12,17 @@
     #local { border: 5px solid #ff4d4d; }
     #remote { border: 5px solid #4caf50; }
     #bottom-bar { 
-      position:absolute; bottom:0; left:0; right:0; height:100px; 
+      position:absolute; bottom:0; left:0; right:0; height:110px; 
       background:rgba(0,0,0,0.9); display:flex; align-items:center; 
-      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
+      justify-content:center; gap:12px; z-index:100; flex-wrap:wrap; 
     }
     button { 
-      padding:14px 30px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
+      padding:13px 26px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
     }
     .manual-btn { background:#2196F3; color:white; }
     .next-btn { background:#ff9800; color:white; }
     .end-btn { background:#e63939; color:white; }
+    .refresh-btn { background:#4caf50; color:white; }
   </style>
 
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -40,6 +41,7 @@
   <div id="bottom-bar">
     <button onclick="window.history.back()">← 返回匹配</button>
     <button class="manual-btn" onclick="manualCall()">手动输入 Peer ID 连接</button>
+    <button class="refresh-btn" onclick="refreshRemoteVideo()">刷新视频</button>
     <button class="next-btn" onclick="goNext()">下一个</button>
     <button class="end-btn" onclick="endCall()">结束通话</button>
   </div>
@@ -80,6 +82,15 @@
       window.location.href = "/";
     }
 
+    function refreshRemoteVideo() {
+      const remoteVideo = document.getElementById('remote');
+      if (remoteVideo.srcObject) {
+        remoteVideo.load();
+        remoteVideo.play().catch(() => {});
+        console.log("手动刷新远程视频");
+      }
+    }
+
     function manualCall() {
       const otherId = prompt("请输入对方的 Peer ID（对方控制台会显示）:");
       if (!otherId || !localStream || !peer) {
@@ -93,8 +104,8 @@
         stopRemoteStream();
         const remoteVideo = document.getElementById('remote');
         remoteVideo.srcObject = stream;
-        remoteVideo.load();           // 强制刷新
-        remoteVideo.play().catch(() => {}); // 强制播放
+        remoteVideo.load();
+        remoteVideo.play().catch(() => {});
         console.log("✅ 手动连接成功！收到对方视频流");
       });
     }
