@@ -93,11 +93,13 @@
         stopRemoteStream();
         document.getElementById('remote').srcObject = stream;
         console.log("✅ 手动连接成功！收到对方视频流");
+        // 强制刷新视频元素
+        const remoteVideo = document.getElementById('remote');
+        remoteVideo.load();
+        remoteVideo.play().catch(() => {});
       });
-      call.on('error', (err) => console.error("呼叫错误:", err));
     }
 
-    // 初始化 PeerJS
     function initPeer() {
       peer = new Peer();
 
@@ -113,6 +115,10 @@
           stopRemoteStream();
           document.getElementById('remote').srcObject = stream;
           console.log("✅ 成功收到对方视频流！");
+          // 强制刷新
+          const remoteVideo = document.getElementById('remote');
+          remoteVideo.load();
+          remoteVideo.play().catch(() => {});
         });
       });
     }
