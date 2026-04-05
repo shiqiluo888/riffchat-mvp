@@ -75,6 +75,8 @@
         remoteVideo.load();
         remoteVideo.play().catch(() => {});
         console.log("手动强制刷新远程视频");
+      } else {
+        console.log("当前没有远程流");
       }
     }
 
@@ -116,7 +118,7 @@
 
       peer.on('open', (id) => {
         console.log("我的 Peer ID:", id);
-        alert("你的 Peer ID 是: " + id + "\n请把这个 ID 发给对方，让对方点击 '手动输入 Peer ID 连接'");
+        alert("你的 Peer ID 是: " + id + "\n请把这个 ID 发给对方，让对方点击 '手动输入 Peer ID'");
       });
 
       peer.on('call', (call) => {
