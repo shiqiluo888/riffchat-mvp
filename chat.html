@@ -19,9 +19,9 @@
     button { 
       padding:13px 26px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
     }
+    .refresh-btn { background:#4caf50; color:white; }
     .next-btn { background:#ff9800; color:white; }
     .end-btn { background:#e63939; color:white; }
-    .refresh-btn { background:#4caf50; color:white; }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -53,7 +53,6 @@
     let localStream = null;
     let peer = null;
 
-    // Firebase 初始化（chat.html 也需要）
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -90,7 +89,7 @@
         stopRemoteStream();
         remoteVideo.load();
         remoteVideo.play().catch(() => {});
-        console.log("🔄 手动刷新远程视频");
+        console.log("🔄 手动强制刷新远程视频");
       }
     }
 
