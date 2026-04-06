@@ -66,7 +66,8 @@
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
-      await db.ref(`queue/${music}`).remove(); // 每次都清空旧数据
+      // 每次匹配前先清空旧数据
+      await db.ref(`queue/${music}`).remove();
 
       myQueueRef = db.ref(`queue/${music}`).push({
         joined: Date.now(),
@@ -76,11 +77,13 @@
       const myId = myQueueRef.key;
       console.log("✅ 加入队列成功，ID:", myId);
 
-      // 轮询检查（最稳）
+      // 可靠轮询（每800ms检查一次）
       const interval = setInterval(() => {
         db.ref(`queue/${music}`).once('value', (snapshot) => {
           const data = snapshot.val() || {};
           const keys = Object.keys(data);
+
+          console.log("轮询检查 - 当前人数:", keys.length);
 
           if (keys.length >= 2) {
             clearInterval(interval);
@@ -94,7 +97,7 @@
 
               setTimeout(() => {
                 window.location.href = `/chat.html?room=${roomId}&style=${music}`;
-              }, 800);
+              }, 600);
             }
           }
         });
