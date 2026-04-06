@@ -48,31 +48,30 @@
   <br><br>
   <button onclick="startMatching()">🚀 开始匹配</button>
   <button onclick="cancelMatching()" style="background:#555;">取消</button>
+  <button onclick="clearAllQueue()" style="background:#777; margin-left:10px;">🧹 清空队列</button>
 
   <p>状态: <span id="status">Idle</span></p>
 
   <script>
     let myQueueRef = null;
 
+    // 一键清空整个队列（测试用）
+    function clearAllQueue() {
+      const music = document.getElementById("music").value;
+      db.ref(`queue/${music}`).remove().then(() => {
+        document.getElementById("status").innerText = "🧹 队列已清空";
+        console.log("🧹 已清空所有队列数据");
+      });
+    }
+
     async function startMatching() {
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
-      // === 第一步：清理60秒前的旧数据 ===
-      const now = Date.now();
-      const queueRef = db.ref(`queue/${music}`);
-      queueRef.once('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        Object.keys(data).forEach(key => {
-          const entry = data[key];
-          if (entry && (now - entry.joined > 60000)) {
-            db.ref(`queue/${music}/${key}`).remove();
-            console.log("🧹 清理旧数据:", key);
-          }
-        });
-      });
+      // === 关键修复：每次匹配前先清空旧数据 ===
+      await db.ref(`queue/${music}`).remove();
+      console.log("🧹 已清空旧队列");
 
-      // 加入新队列
       myQueueRef = db.ref(`queue/${music}`).push({
         joined: Date.now(),
         status: "waiting"
@@ -82,7 +81,7 @@
       console.log("✅ 加入队列成功，ID:", myId);
 
       // 监听
-      queueRef.on('value', (snapshot) => {
+      db.ref(`queue/${music}`).on('value', (snapshot) => {
         const data = snapshot.val() || {};
         const keys = Object.keys(data);
 
