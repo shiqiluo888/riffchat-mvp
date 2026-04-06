@@ -45,13 +45,12 @@
   <script>
     let localStream = null;
     let peer = null;
-    let roomId = new URLSearchParams(window.location.search).get('room');
-    let style = new URLSearchParams(window.location.search).get('style');
+    const params = new URLSearchParams(window.location.search);
+    const roomId = params.get('room');
 
     async function startLocalVideo() {
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       document.getElementById('local').srcObject = localStream;
-      console.log("本地视频开启成功");
     }
 
     function stopRemoteStream() {
@@ -85,43 +84,38 @@
 
       peer.on('open', (id) => {
         console.log("我的 Peer ID:", id);
-        // 把自己的 Peer ID 存到房间里
-        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id, joined: Date.now() });
+        // 存入房间
+        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id });
       });
 
       peer.on('call', (call) => {
-        console.log("收到对方呼叫");
         call.answer(localStream);
-        call.on('stream', (stream) => {
+        call.on('stream', stream => {
           stopRemoteStream();
-          const remoteVideo = document.getElementById('remote');
-          remoteVideo.srcObject = stream;
-          remoteVideo.load();
-          remoteVideo.play().catch(() => {});
-          console.log("✅ 成功收到对方视频流！");
+          document.getElementById('remote').srcObject = stream;
+          document.getElementById('remote').load();
+          document.getElementById('remote').play();
+          console.log("✅ 收到对方视频流");
         });
       });
 
-      // 监听对方 Peer ID
-      db.ref(`rooms/${roomId}/peers`).on('value', (snapshot) => {
+      // 自动发现对方
+      db.ref(`rooms/${roomId}/peers`).on('value', snapshot => {
         const data = snapshot.val() || {};
         const other = Object.values(data).find(p => p.peerId !== peer.id);
         if (other && localStream) {
-          console.log("发现对方 Peer ID:", other.peerId);
           const call = peer.call(other.peerId, localStream);
-          call.on('stream', (stream) => {
+          call.on('stream', stream => {
             stopRemoteStream();
-            const remoteVideo = document.getElementById('remote');
-            remoteVideo.srcObject = stream;
-            remoteVideo.load();
-            remoteVideo.play().catch(() => {});
+            document.getElementById('remote').srcObject = stream;
+            document.getElementById('remote').load();
+            document.getElementById('remote').play();
             console.log("✅ 自动连接成功！");
           });
         }
       });
     }
 
-    // 启动
     startLocalVideo();
     initPeer();
   </script>
