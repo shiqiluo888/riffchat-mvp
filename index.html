@@ -54,12 +54,13 @@
 
   <script>
     let myQueueRef = null;
+    let pollingInterval = null;
 
     function clearAllQueue() {
       const music = document.getElementById("music").value;
       db.ref(`queue/${music}`).remove().then(() => {
         document.getElementById("status").innerText = "🧹 队列已清空";
-        console.log("🧹 已清空队列");
+        console.log("🧹 已清空所有队列");
       });
     }
 
@@ -78,32 +79,36 @@
       const myId = myQueueRef.key;
       console.log("✅ 加入队列成功，ID:", myId);
 
-      // 监听
-      db.ref(`queue/${music}`).on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        const keys = Object.keys(data);
+      // === 轮询检查（每秒一次，最稳）===
+      if (pollingInterval) clearInterval(pollingInterval);
+      pollingInterval = setInterval(() => {
+        db.ref(`queue/${music}`).once('value', (snapshot) => {
+          const data = snapshot.val() || {};
+          const keys = Object.keys(data);
+          console.log("轮询检查 - 当前人数:", keys.length);
 
-        console.log("当前队列人数:", keys.length, "我的ID:", myId);
+          if (keys.length >= 2) {
+            const otherKey = keys.find(k => k !== myId);
+            if (otherKey) {
+              clearInterval(pollingInterval);
+              const roomId = [myId, otherKey].sort().join('_');
 
-        if (keys.length >= 2) {
-          const otherKey = keys.find(k => k !== myId);
-          if (otherKey) {
-            const roomId = [myId, otherKey].sort().join('_');
+              db.ref(`queue/${music}/${myId}`).remove();
 
-            db.ref(`queue/${music}/${myId}`).remove();
+              document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
+              console.log("🎉 匹配成功！房间ID:", roomId);
 
-            document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
-            console.log("🎉 匹配成功！房间ID:", roomId);
-
-            setTimeout(() => {
-              window.location.href = `/chat.html?room=${roomId}&style=${music}`;
-            }, 600);
+              setTimeout(() => {
+                window.location.href = `/chat.html?room=${roomId}&style=${music}`;
+              }, 600);
+            }
           }
-        }
-      });
+        });
+      }, 1000);   // 每秒检查一次
     }
 
     function cancelMatching() {
+      if (pollingInterval) clearInterval(pollingInterval);
       if (myQueueRef) {
         myQueueRef.remove();
         myQueueRef = null;
