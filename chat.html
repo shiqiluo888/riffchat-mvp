@@ -14,11 +14,12 @@
     .warning { color: #ffcc00; font-weight: bold; margin: 20px; }
   </style>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, push, onValue, remove, query, orderByChild, limitToFirst } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  <!-- Firebase 兼容模式（最稳定） -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
-    const app = initializeApp({
+  <script>
+    const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
       projectId: "riffchat-96b69",
@@ -26,9 +27,11 @@
       messagingSenderId: "597645980095",
       appId: "1:597645980095:web:607eefd061c062fed7710a",
       databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"
-    });
+    };
 
-    window.db = getDatabase(app);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     console.log("✅ Firebase 初始化成功");
   </script>
 </head>
@@ -58,7 +61,7 @@
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
       try {
-        myQueueRef = push(ref(window.db, `queue/${music}`), {
+        myQueueRef = db.ref(`queue/${music}`).push({
           joined: Date.now(),
           status: "waiting"
         });
@@ -66,9 +69,9 @@
         const myId = myQueueRef.key;
         console.log("✅ 加入队列成功，ID:", myId);
 
-        const q = query(ref(window.db, `queue/${music}`), orderByChild("joined"), limitToFirst(2));
+        const q = db.ref(`queue/${music}`).orderByChild("joined").limitToFirst(2);
 
-        onValue(q, (snapshot) => {
+        q.on('value', (snapshot) => {
           const data = snapshot.val();
           if (!data) return;
 
@@ -79,7 +82,7 @@
             const otherKey = keys.find(k => k !== myId);
             if (otherKey) {
               const roomId = [myId, otherKey].sort().join('_');
-              remove(ref(window.db, `queue/${music}/${myId}`));
+              db.ref(`queue/${music}/${myId}`).remove();
 
               document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
               console.log("🎉 匹配成功，房间ID:", roomId);
@@ -98,7 +101,7 @@
 
     function cancelMatching() {
       if (myQueueRef) {
-        remove(myQueueRef);
+        myQueueRef.remove();
         myQueueRef = null;
       }
       document.getElementById("status").innerText = "已取消匹配";
