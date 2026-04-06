@@ -58,6 +58,21 @@
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
+      // === 第一步：清理60秒前的旧数据 ===
+      const now = Date.now();
+      const queueRef = db.ref(`queue/${music}`);
+      queueRef.once('value', (snapshot) => {
+        const data = snapshot.val() || {};
+        Object.keys(data).forEach(key => {
+          const entry = data[key];
+          if (entry && (now - entry.joined > 60000)) {
+            db.ref(`queue/${music}/${key}`).remove();
+            console.log("🧹 清理旧数据:", key);
+          }
+        });
+      });
+
+      // 加入新队列
       myQueueRef = db.ref(`queue/${music}`).push({
         joined: Date.now(),
         status: "waiting"
@@ -66,23 +81,15 @@
       const myId = myQueueRef.key;
       console.log("✅ 加入队列成功，ID:", myId);
 
-      db.ref(`queue/${music}`).on('value', (snapshot) => {
+      // 监听
+      queueRef.on('value', (snapshot) => {
         const data = snapshot.val() || {};
         const keys = Object.keys(data);
-        const now = Date.now();
 
         console.log("当前队列人数:", keys.length);
 
-        // 只匹配最近60秒内加入的人（防止旧数据干扰）
-        let recentUsers = keys.filter(k => {
-          const user = data[k];
-          return user && (now - user.joined < 60000);
-        });
-
-        console.log("最近60秒内的人数:", recentUsers.length);
-
-        if (recentUsers.length >= 2) {
-          const otherKey = recentUsers.find(k => k !== myId);
+        if (keys.length >= 2) {
+          const otherKey = keys.find(k => k !== myId);
           if (otherKey) {
             const roomId = [myId, otherKey].sort().join('_');
 
