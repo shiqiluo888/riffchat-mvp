@@ -54,6 +54,7 @@
 
   <script>
     let myQueueRef = null;
+    let hasMatched = false;
 
     function clearAllQueue() {
       const music = document.getElementById("music").value;
@@ -63,8 +64,13 @@
     }
 
     async function startMatching() {
+      if (hasMatched) return;
+
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
+
+      // 每次匹配前清空旧数据
+      await db.ref(`queue/${music}`).remove();
 
       myQueueRef = db.ref(`queue/${music}`).push({
         joined: Date.now(),
@@ -74,31 +80,33 @@
       const myId = myQueueRef.key;
       console.log("✅ 加入队列成功，ID:", myId);
 
-      // 可靠轮询（每800ms检查一次）
-      const interval = setInterval(() => {
-        db.ref(`queue/${music}`).once('value', (snapshot) => {
-          const data = snapshot.val() || {};
-          const keys = Object.keys(data);
+      // 使用 on('value') 实时监听（最可靠）
+      db.ref(`queue/${music}`).on('value', (snapshot) => {
+        if (hasMatched) return;
 
-          console.log("轮询检查 - 当前人数:", keys.length);
+        const data = snapshot.val() || {};
+        const keys = Object.keys(data);
 
-          if (keys.length >= 2) {
-            clearInterval(interval);
-            const otherKey = keys.find(k => k !== myId);
-            if (otherKey) {
-              const roomId = [myId, otherKey].sort().join('_');
-              db.ref(`queue/${music}/${myId}`).remove();
+        console.log("实时检查 - 当前人数:", keys.length);
 
-              document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
-              console.log("🎉 匹配成功，房间ID:", roomId);
+        if (keys.length >= 2) {
+          const otherKey = keys.find(k => k !== myId);
+          if (otherKey) {
+            hasMatched = true;
+            const roomId = [myId, otherKey].sort().join('_');
 
-              setTimeout(() => {
-                window.location.href = `/chat.html?room=${roomId}&style=${music}`;
-              }, 600);
-            }
+            // 删除自己
+            db.ref(`queue/${music}/${myId}`).remove();
+
+            document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
+            console.log("🎉 匹配成功，房间ID:", roomId);
+
+            setTimeout(() => {
+              window.location.href = `/chat.html?room=${roomId}&style=${music}`;
+            }, 600);
           }
-        });
-      }, 800);
+        }
+      });
     }
 
     function cancelMatching() {
