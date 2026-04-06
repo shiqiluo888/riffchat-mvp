@@ -69,7 +69,7 @@
       const myId = myQueueRef.key;
       console.log("✅ 加入队列成功，ID:", myId);
 
-      // 监听队列
+      // 监听队列变化
       const queueRef = db.ref(`queue/${music}`);
       queueRef.on('value', (snapshot) => {
         if (hasMatched) return;
@@ -77,9 +77,10 @@
         const data = snapshot.val() || {};
         const keys = Object.keys(data);
 
-        console.log("当前队列人数:", keys.length, "我的ID:", myId);
+        console.log("当前队列人数:", keys.length);
 
-        if (keys.length >= 2) {
+        // 只有当队列里有2个人或以上，并且包含自己时才匹配
+        if (keys.length >= 2 && keys.includes(myId)) {
           const otherKey = keys.find(k => k !== myId);
           if (otherKey) {
             hasMatched = true;
@@ -93,7 +94,7 @@
 
             setTimeout(() => {
               window.location.href = `/chat.html?room=${roomId}&style=${music}`;
-            }, 800);
+            }, 1000);
           }
         }
       });
@@ -105,6 +106,7 @@
         myQueueRef = null;
       }
       document.getElementById("status").innerText = "已取消匹配";
+      hasMatched = false;
     }
   </script>
 </body>
