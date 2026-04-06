@@ -55,8 +55,11 @@
 
   <script>
     let myQueueRef = null;
+    let hasMatched = false;   // 防止重复触发
 
     async function startMatching() {
+      if (hasMatched) return;
+      
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
@@ -69,9 +72,12 @@
         const myId = myQueueRef.key;
         console.log("✅ 加入队列成功，ID:", myId);
 
+        // 监听同风格队列
         const q = db.ref(`queue/${music}`).orderByChild("joined").limitToFirst(2);
 
         q.on('value', (snapshot) => {
+          if (hasMatched) return;
+
           const data = snapshot.val();
           if (!data) return;
 
@@ -81,7 +87,10 @@
           if (keys.length >= 2) {
             const otherKey = keys.find(k => k !== myId);
             if (otherKey) {
+              hasMatched = true;
               const roomId = [myId, otherKey].sort().join('_');
+
+              // 删除自己
               db.ref(`queue/${music}/${myId}`).remove();
 
               document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
@@ -89,7 +98,7 @@
 
               setTimeout(() => {
                 window.location.href = `/chat.html?room=${roomId}&style=${music}`;
-              }, 1200);
+              }, 1000);
             }
           }
         });
