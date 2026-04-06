@@ -66,20 +66,26 @@
       const myId = myQueueRef.key;
       console.log("✅ 加入队列成功，ID:", myId);
 
-      // 监听队列
       db.ref(`queue/${music}`).on('value', (snapshot) => {
         const data = snapshot.val() || {};
         const keys = Object.keys(data);
+        const now = Date.now();
 
         console.log("当前队列人数:", keys.length);
 
-        // 只有真正有2个人时才匹配
-        if (keys.length >= 2) {
-          const otherKey = keys.find(k => k !== myId);
+        // 只匹配最近60秒内加入的人（防止旧数据干扰）
+        let recentUsers = keys.filter(k => {
+          const user = data[k];
+          return user && (now - user.joined < 60000);
+        });
+
+        console.log("最近60秒内的人数:", recentUsers.length);
+
+        if (recentUsers.length >= 2) {
+          const otherKey = recentUsers.find(k => k !== myId);
           if (otherKey) {
             const roomId = [myId, otherKey].sort().join('_');
 
-            // 删除自己
             db.ref(`queue/${music}/${myId}`).remove();
 
             document.getElementById("status").innerText = "✅ 匹配成功！进入房间...";
