@@ -66,9 +66,6 @@
       const music = document.getElementById("music").value;
       document.getElementById("status").innerText = `正在寻找喜欢 ${music} 的伙伴...`;
 
-      // 每次匹配前先清空旧数据
-      await db.ref(`queue/${music}`).remove();
-
       myQueueRef = db.ref(`queue/${music}`).push({
         joined: Date.now(),
         status: "waiting"
