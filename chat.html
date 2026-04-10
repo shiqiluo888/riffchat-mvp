@@ -52,7 +52,9 @@
 
     let localStream = null;
     let peer = null;
+    let myJoinTime = Date.now(); // 记录我加入的时间，用于防冲突
 
+    // --- Firebase 初始化 ---
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -65,14 +67,25 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // 1. 获取本地视频
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('local').srcObject = localStream;
-        console.log("✅ 本地视频开启成功");
+        console.log("✅ 本地摄像头已开启");
       } catch (err) {
-        alert("无法打开摄像头/麦克风: " + err.message);
+        alert("无法打开摄像头/麦克风，请检查浏览器权限: " + err.message);
+        throw err; // 如果没有权限，中断后续执行
       }
+    }
+
+    // 播放远程视频的辅助函数
+    function showRemoteStream(stream) {
+      stopRemoteStream();
+      const remoteVideo = document.getElementById('remote');
+      remoteVideo.srcObject = stream;
+      remoteVideo.play().catch((e) => console.log("播放被拦截，需要用户交互:", e));
+      console.log("✅ 成功显示对方视频！");
     }
 
     function stopRemoteStream() {
@@ -83,77 +96,115 @@
       }
     }
 
+    // 2. 初始化 Peer
+    function initPeer() {
+      peer = new Peer({
+        config: {
+          'iceServers': [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      });
+
+      peer.on('open', (id) => {
+        console.log("🔥 我的 Peer ID:", id);
+        const peerRef = db.ref(`rooms/${roomId}/peers/${id}`);
+        
+        // 写入我的信息
+        peerRef.set({ peerId: id, joined: myJoinTime });
+        
+        // 当我意外断开连接或关掉网页时，自动从 Firebase 删掉我的信息
+        peerRef.onDisconnect().remove();
+      });
+
+      // 【被动接听】当有人打给我时
+      peer.on('call', (call) => {
+        console.log("📞 收到对方呼叫，接听中...");
+        call.answer(localStream); // 回复我的视频流
+        call.on('stream', (stream) => {
+          showRemoteStream(stream);
+        });
+      });
+
+      // 【主动呼叫】监听房间里的人员变动
+      db.ref(`rooms/${roomId}/peers`).on('child_added', (snapshot) => {
+        const otherUser = snapshot.val();
+        
+        if (otherUser.peerId !== peer.id) {
+          console.log("👀 发现房间里有其他人:", otherUser.peerId);
+          
+          // 防冲突机制：只允许“后进房间”的人打给“先进房间”的人
+          if (myJoinTime > otherUser.joined) {
+            console.log("👉 我比对方晚进房间，由我主动发起呼叫...");
+            const call = peer.call(otherUser.peerId, localStream);
+            
+            call.on('stream', (stream) => {
+              showRemoteStream(stream);
+            });
+          } else {
+            console.log("⏳ 对方比我晚进房间，我等对方打给我...");
+          }
+        }
+      });
+
+      // 监听对方离开
+      db.ref(`rooms/${roomId}/peers`).on('child_removed', (snapshot) => {
+        const leftUser = snapshot.val();
+        if (leftUser.peerId !== peer.id) {
+          console.log("❌ 对方离开了房间");
+          stopRemoteStream();
+        }
+      });
+    }
+
+    // --- 按钮功能逻辑 ---
+
     function forceRefreshRemote() {
       const remoteVideo = document.getElementById('remote');
       if (remoteVideo.srcObject) {
-        stopRemoteStream();
+        // 不销毁流，只重新 load 播放器
         remoteVideo.load();
         remoteVideo.play().catch(() => {});
         console.log("🔄 手动强制刷新远程视频");
       }
     }
 
-    function endCall() {
+    // 离开房间清理数据的通用函数
+    function cleanupAndLeave() {
+      if (peer) {
+        db.ref(`rooms/${roomId}/peers/${peer.id}`).remove();
+        peer.destroy();
+      }
       stopRemoteStream();
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
-      if (peer) peer.destroy();
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+    }
+
+    function endCall() {
+      cleanupAndLeave();
       window.history.back();
     }
 
     function goNext() {
-      stopRemoteStream();
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
-      if (peer) peer.destroy();
+      cleanupAndLeave();
       window.location.href = "/";
     }
 
     function goBack() {
+      cleanupAndLeave();
       window.location.href = "/";
     }
 
-    function initPeer() {
-      peer = new Peer();
-
-      peer.on('open', (id) => {
-        console.log("我的 Peer ID:", id);
-        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id, joined: Date.now() });
-      });
-
-      peer.on('call', (call) => {
-        console.log("收到对方呼叫");
-        call.answer(localStream);
-        call.on('stream', (stream) => {
-          stopRemoteStream();
-          const remoteVideo = document.getElementById('remote');
-          remoteVideo.srcObject = stream;
-          remoteVideo.load();
-          remoteVideo.play().catch(() => {});
-          console.log("✅ 成功收到对方视频流！");
-        });
-      });
-
-      // 自动发现对方
-      db.ref(`rooms/${roomId}/peers`).on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        const other = Object.values(data).find(p => p.peerId !== peer.id);
-        if (other && localStream) {
-          console.log("发现对方 Peer ID:", other.peerId);
-          const call = peer.call(other.peerId, localStream);
-          call.on('stream', (stream) => {
-            stopRemoteStream();
-            const remoteVideo = document.getElementById('remote');
-            remoteVideo.srcObject = stream;
-            remoteVideo.load();
-            remoteVideo.play().catch(() => {});
-            console.log("✅ 自动连接成功！");
-          });
-        }
-      });
+    // 3. 启动应用：确保流程顺序
+    async function startApp() {
+      await startLocalVideo(); // 第一步：等待用户允许摄像头
+      initPeer();              // 第二步：摄像头就绪后，再开始寻找别人
     }
 
-    // 启动
-    startLocalVideo();
-    initPeer();
+    // 执行启动
+    startApp();
   </script>
 </body>
 </html>
