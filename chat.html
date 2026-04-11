@@ -8,7 +8,7 @@
     body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
     #main { display:flex; height:100vh; }
     .video-box { flex:1; position:relative; background:#111; }
-    video { width:100%; height:100%; object-fit:cover; }
+    video { width:100%; height:100%; object-fit:cover; background: #000; }
     #local { border: 5px solid #ff4d4d; }
     #remote { border: 5px solid #4caf50; }
     #bottom-bar { 
@@ -18,7 +18,9 @@
     }
     button { 
       padding:13px 26px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
+      transition: opacity 0.2s;
     }
+    button:active { opacity: 0.7; }
     .refresh-btn { background:#4caf50; color:white; }
     .next-btn { background:#ff9800; color:white; }
     .end-btn { background:#e63939; color:white; }
@@ -52,9 +54,10 @@
 
     let localStream = null;
     let peer = null;
-    let myJoinTime = Date.now(); // 记录我加入的时间，用于防冲突
+    let myJoinTime = Date.now(); 
+    let isPlaying = false; // 播放状态锁
 
-    // --- Firebase 初始化 ---
+    // --- Firebase 配置 ---
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -67,36 +70,47 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 1. 获取本地视频
+    // 1. 获取本地流
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('local').srcObject = localStream;
-        console.log("✅ 本地摄像头已开启");
+        console.log("✅ 本地摄像头已就绪");
       } catch (err) {
-        alert("无法打开摄像头/麦克风，请检查浏览器权限: " + err.message);
-        throw err; // 如果没有权限，中断后续执行
+        alert("请允许摄像头和麦克风权限以进行视频聊天");
+        throw err;
       }
     }
 
-    // 播放远程视频的辅助函数
+    // 2. 渲染远程流（修复黑屏核心逻辑）
     function showRemoteStream(stream) {
-      stopRemoteStream();
       const remoteVideo = document.getElementById('remote');
+      
+      // 如果已经有流在播，且流 ID 没变，就不重复挂载
+      if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
+
+      if (isPlaying) return; // 如果正在执行 play()，则拦截后续请求
+
+      console.log("🎥 正在挂载视频流...");
+      isPlaying = true;
       remoteVideo.srcObject = stream;
-      remoteVideo.play().catch((e) => console.log("播放被拦截，需要用户交互:", e));
-      console.log("✅ 成功显示对方视频！");
+      
+      remoteVideo.play()
+        .then(() => {
+          console.log("✅ 视频画面渲染成功！");
+          isPlaying = false;
+        })
+        .catch((e) => {
+          isPlaying = false;
+          if (e.name === 'AbortError') {
+            console.log("💡 播放请求被新请求覆盖，属正常握手现象");
+          } else {
+            console.error("❌ 播放失败:", e);
+          }
+        });
     }
 
-    function stopRemoteStream() {
-      const remoteVideo = document.getElementById('remote');
-      if (remoteVideo.srcObject) {
-        remoteVideo.srcObject.getTracks().forEach(track => track.stop());
-        remoteVideo.srcObject = null;
-      }
-    }
-
-    // 2. 初始化 Peer
+    // 3. 初始化连线
     function initPeer() {
       peer = new Peer({
         config: {
@@ -110,100 +124,67 @@
       peer.on('open', (id) => {
         console.log("🔥 我的 Peer ID:", id);
         const peerRef = db.ref(`rooms/${roomId}/peers/${id}`);
-        
-        // 写入我的信息
         peerRef.set({ peerId: id, joined: myJoinTime });
-        
-        // 当我意外断开连接或关掉网页时，自动从 Firebase 删掉我的信息
-        peerRef.onDisconnect().remove();
+        peerRef.onDisconnect().remove(); // 离线自动清理
       });
 
-      // 【被动接听】当有人打给我时
+      // 被动接听
       peer.on('call', (call) => {
-        console.log("📞 收到对方呼叫，接听中...");
-        call.answer(localStream); // 回复我的视频流
-        call.on('stream', (stream) => {
-          showRemoteStream(stream);
-        });
+        console.log("📞 收到对方呼叫...");
+        call.answer(localStream);
+        call.on('stream', showRemoteStream);
       });
 
-      // 【主动呼叫】监听房间里的人员变动
+      // 主动呼叫
       db.ref(`rooms/${roomId}/peers`).on('child_added', (snapshot) => {
-        const otherUser = snapshot.val();
-        
-        if (otherUser.peerId !== peer.id) {
-          console.log("👀 发现房间里有其他人:", otherUser.peerId);
-          
-          // 防冲突机制：只允许“后进房间”的人打给“先进房间”的人
-          if (myJoinTime > otherUser.joined) {
-            console.log("👉 我比对方晚进房间，由我主动发起呼叫...");
-            const call = peer.call(otherUser.peerId, localStream);
-            
-            call.on('stream', (stream) => {
-              showRemoteStream(stream);
-            });
-          } else {
-            console.log("⏳ 对方比我晚进房间，我等对方打给我...");
+        const other = snapshot.val();
+        // 只有当我比对方晚进入房间，且没在通话时，才发起呼叫
+        if (other.peerId !== peer.id) {
+          if (myJoinTime > other.joined) {
+            console.log("👉 发现前辈，主动拨号:", other.peerId);
+            const call = peer.call(other.peerId, localStream);
+            call.on('stream', showRemoteStream);
           }
         }
       });
 
-      // 监听对方离开
+      // 对方离开处理
       db.ref(`rooms/${roomId}/peers`).on('child_removed', (snapshot) => {
         const leftUser = snapshot.val();
         if (leftUser.peerId !== peer.id) {
-          console.log("❌ 对方离开了房间");
-          stopRemoteStream();
+          console.log("👋 对方已离开");
+          const remoteVideo = document.getElementById('remote');
+          remoteVideo.srcObject = null;
         }
       });
     }
 
-    // --- 按钮功能逻辑 ---
-
+    // --- 交互功能 ---
     function forceRefreshRemote() {
       const remoteVideo = document.getElementById('remote');
       if (remoteVideo.srcObject) {
-        // 不销毁流，只重新 load 播放器
-        remoteVideo.load();
         remoteVideo.play().catch(() => {});
-        console.log("🔄 手动强制刷新远程视频");
       }
     }
 
-    // 离开房间清理数据的通用函数
-    function cleanupAndLeave() {
+    function cleanup() {
       if (peer) {
         db.ref(`rooms/${roomId}/peers/${peer.id}`).remove();
         peer.destroy();
       }
-      stopRemoteStream();
-      if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-      }
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
     }
 
-    function endCall() {
-      cleanupAndLeave();
-      window.history.back();
-    }
+    function endCall() { cleanup(); window.history.back(); }
+    function goNext() { cleanup(); window.location.href = "/"; }
+    function goBack() { cleanup(); window.location.href = "/"; }
 
-    function goNext() {
-      cleanupAndLeave();
-      window.location.href = "/";
-    }
-
-    function goBack() {
-      cleanupAndLeave();
-      window.location.href = "/";
-    }
-
-    // 3. 启动应用：确保流程顺序
+    // 启动顺序排好队
     async function startApp() {
-      await startLocalVideo(); // 第一步：等待用户允许摄像头
-      initPeer();              // 第二步：摄像头就绪后，再开始寻找别人
+      await startLocalVideo();
+      initPeer();
     }
 
-    // 执行启动
     startApp();
   </script>
 </body>
