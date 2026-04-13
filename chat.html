@@ -6,24 +6,32 @@
   <title>RiffChat 房间</title>
   <style>
     body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
-    #main { display:flex; height:100vh; }
-    .video-box { flex:1; position:relative; background:#111; }
+    #main { display:flex; height:100vh; position: relative; }
+    
+    /* 视频容器调整 */
+    .video-box { flex:1; position:relative; background:#111; display:flex; align-items:center; justify-content:center; }
     video { width:100%; height:100%; object-fit:cover; background: #000; }
-    #local { border: 5px solid #ff4d4d; }
-    #remote { border: 5px solid #4caf50; }
+    #local { border: 2px solid #ff4d4d; }
+    #remote { border: 2px solid #4caf50; }
+    
+    /* 对方断开连接的提示文字 */
+    #remote-status { 
+      position: absolute; font-size: 20px; color: #fff; background: rgba(0,0,0,0.6);
+      padding: 10px 20px; border-radius: 10px; display: none; z-index: 10;
+    }
+
     #bottom-bar { 
-      position:absolute; bottom:0; left:0; right:0; height:110px; 
-      background:rgba(0,0,0,0.9); display:flex; align-items:center; 
-      justify-content:center; gap:12px; z-index:100; flex-wrap:wrap; 
+      position:absolute; bottom:0; left:0; right:0; height:100px; 
+      background:rgba(0,0,0,0.8); display:flex; align-items:center; 
+      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
     }
     button { 
-      padding:13px 26px; font-size:16px; cursor:pointer; border:none; border-radius:10px; 
-      transition: opacity 0.2s;
+      padding:12px 24px; font-size:16px; cursor:pointer; border:none; border-radius:8px; 
+      transition: opacity 0.2s; font-weight: bold;
     }
     button:active { opacity: 0.7; }
-    .refresh-btn { background:#4caf50; color:white; }
-    .next-btn { background:#ff9800; color:white; }
-    .end-btn { background:#e63939; color:white; }
+    .back-btn { background:#555; color:white; }
+    .next-btn { background:#ff9800; color:white; padding: 12px 40px; font-size: 18px; }
   </style>
 
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -34,6 +42,7 @@
 
   <div id="main">
     <div class="video-box">
+      <div id="remote-status">等待对方连接...</div>
       <video id="remote" autoplay playsinline></video>
     </div>
     <div class="video-box">
@@ -42,10 +51,8 @@
   </div>
 
   <div id="bottom-bar">
-    <button onclick="goBack()">← 返回匹配</button>
-    <button class="refresh-btn" onclick="forceRefreshRemote()">🔄 刷新视频</button>
-    <button class="next-btn" onclick="goNext()">下一个</button>
-    <button class="end-btn" onclick="endCall()">结束通话</button>
+    <button class="back-btn" onclick="goHome()">离开大厅</button>
+    <button class="next-btn" onclick="goNext()">⏭ 下一个</button> 
   </div>
 
   <script>
@@ -55,9 +62,7 @@
     let localStream = null;
     let peer = null;
     let myJoinTime = Date.now(); 
-    let isPlaying = false; // 播放状态锁
 
-    // --- Firebase 配置 ---
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -70,47 +75,38 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 1. 获取本地流
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         document.getElementById('local').srcObject = localStream;
-        console.log("✅ 本地摄像头已就绪");
       } catch (err) {
-        alert("请允许摄像头和麦克风权限以进行视频聊天");
-        throw err;
+        alert("请允许摄像头和麦克风权限！");
       }
     }
 
-    // 2. 渲染远程流（修复黑屏核心逻辑）
+    // --- 极度稳定的视频挂载逻辑 ---
     function showRemoteStream(stream) {
       const remoteVideo = document.getElementById('remote');
+      const statusText = document.getElementById('remote-status');
       
-      // 如果已经有流在播，且流 ID 没变，就不重复挂载
       if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
 
-      if (isPlaying) return; // 如果正在执行 play()，则拦截后续请求
-
-      console.log("🎥 正在挂载视频流...");
-      isPlaying = true;
-      remoteVideo.srcObject = stream;
+      statusText.style.display = "none"; // 隐藏等待文字
       
-      remoteVideo.play()
-        .then(() => {
-          console.log("✅ 视频画面渲染成功！");
-          isPlaying = false;
-        })
-        .catch((e) => {
-          isPlaying = false;
-          if (e.name === 'AbortError') {
-            console.log("💡 播放请求被新请求覆盖，属正常握手现象");
-          } else {
-            console.error("❌ 播放失败:", e);
-          }
-        });
+      // 核心防黑屏策略：先彻底清空，稍微延时后再挂载新流
+      remoteVideo.srcObject = null;
+      setTimeout(() => {
+        remoteVideo.srcObject = stream;
+        remoteVideo.onloadedmetadata = () => {
+          remoteVideo.play().catch(e => {
+            console.log("尝试静音自动播放");
+            remoteVideo.muted = true;
+            remoteVideo.play();
+          });
+        };
+      }, 50);
     }
 
-    // 3. 初始化连线
     function initPeer() {
       peer = new Peer({
         config: {
@@ -122,51 +118,46 @@
       });
 
       peer.on('open', (id) => {
-        console.log("🔥 我的 Peer ID:", id);
         const peerRef = db.ref(`rooms/${roomId}/peers/${id}`);
         peerRef.set({ peerId: id, joined: myJoinTime });
-        peerRef.onDisconnect().remove(); // 离线自动清理
+        peerRef.onDisconnect().remove(); 
       });
 
-      // 被动接听
       peer.on('call', (call) => {
-        console.log("📞 收到对方呼叫...");
         call.answer(localStream);
         call.on('stream', showRemoteStream);
       });
 
-      // 主动呼叫
       db.ref(`rooms/${roomId}/peers`).on('child_added', (snapshot) => {
         const other = snapshot.val();
-        // 只有当我比对方晚进入房间，且没在通话时，才发起呼叫
-        if (other.peerId !== peer.id) {
-          if (myJoinTime > other.joined) {
-            console.log("👉 发现前辈，主动拨号:", other.peerId);
-            const call = peer.call(other.peerId, localStream);
-            call.on('stream', showRemoteStream);
-          }
+        if (other.peerId !== peer.id && myJoinTime > other.joined) {
+          const call = peer.call(other.peerId, localStream);
+          call.on('stream', showRemoteStream);
         }
       });
 
-      // 对方离开处理
+      // 对方离开房间时的处理
       db.ref(`rooms/${roomId}/peers`).on('child_removed', (snapshot) => {
         const leftUser = snapshot.val();
         if (leftUser.peerId !== peer.id) {
-          console.log("👋 对方已离开");
-          const remoteVideo = document.getElementById('remote');
-          remoteVideo.srcObject = null;
+          document.getElementById('remote').srcObject = null;
+          const status = document.getElementById('remote-status');
+          status.innerText = "对方已断开连接，请点击下一个 ⏭";
+          status.style.display = "block";
         }
       });
     }
 
-    // --- 交互功能 ---
-    function forceRefreshRemote() {
+    // --- 全局点击解锁视频 (针对手机浏览器策略) ---
+    document.body.addEventListener('click', () => {
       const remoteVideo = document.getElementById('remote');
-      if (remoteVideo.srcObject) {
-        remoteVideo.play().catch(() => {});
+      if (remoteVideo.paused && remoteVideo.srcObject) {
+        remoteVideo.muted = false;
+        remoteVideo.play().catch(()=>{});
       }
-    }
+    });
 
+    // --- 退出与跳转逻辑 ---
     function cleanup() {
       if (peer) {
         db.ref(`rooms/${roomId}/peers/${peer.id}`).remove();
@@ -175,11 +166,20 @@
       if (localStream) localStream.getTracks().forEach(t => t.stop());
     }
 
-    function endCall() { cleanup(); window.history.back(); }
-    function goNext() { cleanup(); window.location.href = "/"; }
-    function goBack() { cleanup(); window.location.href = "/"; }
+    function goNext() {
+      cleanup();
+      // 销毁当前房间，让对方也知道我走了
+      db.ref(`rooms/${roomId}`).remove();
+      // 核心：带上 auto=true 参数，大厅识别后会立刻重新匹配
+      window.location.replace("index.html?auto=true");
+    }
 
-    // 启动顺序排好队
+    function goHome() {
+      cleanup();
+      db.ref(`rooms/${roomId}`).remove();
+      window.location.replace("index.html");
+    }
+
     async function startApp() {
       await startLocalVideo();
       initPeer();
