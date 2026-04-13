@@ -7,13 +7,12 @@
   <style>
     body { margin:0; background:#000; color:#fff; font-family:Arial; overflow:hidden; position: fixed; width: 100%; height: 100%; }
     #main { display:flex; flex-direction: column; height:100vh; }
-    .video-box { flex:1; position:relative; background:#111; overflow: hidden; }
+    .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; }
     video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
-    /* 手机端上下排列，电脑端左右排列 */
     @media (min-width: 600px) { #main { flex-direction: row; } }
-    #remote-status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; text-align: center;}
+    #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 10px; text-align: center; font-size: 16px; font-weight: bold; }
     #bottom-bar { position:absolute; bottom:0; width:100%; height:80px; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; gap:20px; z-index:100; }
-    button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; font-weight: bold; color: white; }
+    button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; }
     .next-btn { background:#ff9800; width: 120px; }
     .back-btn { background:#444; }
   </style>
@@ -34,7 +33,7 @@
   </div>
 
   <div id="bottom-bar">
-    <button class="back-btn" onclick="goHome()">退出</button>
+    <button class="back-btn" onclick="goHome()">退出大厅</button>
     <button class="next-btn" onclick="goNext()">下一个 ⏭</button>
   </div>
 
@@ -43,7 +42,7 @@
     const roomId = params.get('room');
     let localStream = null;
     let peer = null;
-    let myJoinTime = Date.now();
+    let connectTimeout = null;
 
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
@@ -62,11 +61,13 @@
         localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
         document.getElementById('local').srcObject = localStream;
       } catch (err) {
-        alert("请开启摄像头权限");
+        alert("请开启摄像头和麦克风权限！");
       }
     }
 
     function showRemoteStream(stream) {
+      if (connectTimeout) clearTimeout(connectTimeout); // 成功拿到流，取消超时警告
+      
       const remoteVideo = document.getElementById('remote');
       document.getElementById('remote-status').style.display = 'none';
       
@@ -75,22 +76,18 @@
       remoteVideo.pause();
       remoteVideo.srcObject = stream;
       
-      // 移动端关键：必须先尝试播放
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
         playPromise.catch(error => {
-          console.log("自动播放受限，等待点击");
-          // 如果报错，说明需要用户点一下屏幕
-          document.getElementById('remote-status').innerText = "点击屏幕开启声音/画面";
+          document.getElementById('remote-status').innerText = "由于浏览器限制，请点击屏幕任意位置开启对方画面和声音";
           document.getElementById('remote-status').style.display = 'block';
         });
       }
     }
 
-    // 点击屏幕解锁所有音频/视频播放（移动端规范）
     document.addEventListener('click', () => {
       const rv = document.getElementById('remote');
-      if (rv) {
+      if (rv && rv.paused) {
         rv.muted = false;
         rv.play().catch(()=>{});
         document.getElementById('remote-status').style.display = 'none';
@@ -103,8 +100,16 @@
       });
 
       peer.on('open', (id) => {
-        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id, joined: myJoinTime });
+        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id });
         db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
+
+        // 12秒没连上，大概率对方网络卡了或者退出了
+        connectTimeout = setTimeout(() => {
+          const statusEl = document.getElementById('remote-status');
+          if (statusEl.style.display !== 'none') {
+            statusEl.innerText = "连接超时，对方网络可能不佳，请直接点击【下一个】⏭";
+          }
+        }, 12000);
       });
 
       peer.on('call', (call) => {
@@ -114,20 +119,25 @@
 
       db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
         const other = snap.val();
-        if (other.peerId !== peer.id && myJoinTime > other.joined) {
-          const call = peer.call(other.peerId, localStream);
-          call.on('stream', showRemoteStream);
+        // 【核心修复】用 ID 字符串大小做绝对的判断，谁的 ID 大，谁就主动打电话
+        if (other.peerId !== peer.id && peer.id > other.peerId) {
+          // 延时1.5秒打电话，确保对面的 peer.on('call') 已经准备就绪
+          setTimeout(() => {
+            const call = peer.call(other.peerId, localStream);
+            call.on('stream', showRemoteStream);
+          }, 1500); 
         }
       });
 
       db.ref(`rooms/${roomId}/peers`).on('child_removed', () => {
         document.getElementById('remote').srcObject = null;
-        document.getElementById('remote-status').innerText = "对方已离开，请点下一个";
+        document.getElementById('remote-status').innerText = "对方已断开连接，请点下一个 ⏭";
         document.getElementById('remote-status').style.display = 'block';
       });
     }
 
     function cleanup() {
+      if (connectTimeout) clearTimeout(connectTimeout);
       if (peer) { db.ref(`rooms/${roomId}/peers/${peer.id}`).remove(); peer.destroy(); }
       if (localStream) localStream.getTracks().forEach(t => t.stop());
     }
