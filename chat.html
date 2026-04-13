@@ -2,38 +2,21 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>RiffChat 房间</title>
   <style>
-    body { margin:0; background:#000; color:#fff; font-family:Arial, sans-serif; overflow:hidden; }
-    #main { display:flex; height:100vh; position: relative; }
-    
-    /* 视频容器调整 */
-    .video-box { flex:1; position:relative; background:#111; display:flex; align-items:center; justify-content:center; }
-    video { width:100%; height:100%; object-fit:cover; background: #000; }
-    #local { border: 2px solid #ff4d4d; }
-    #remote { border: 2px solid #4caf50; }
-    
-    /* 对方断开连接的提示文字 */
-    #remote-status { 
-      position: absolute; font-size: 20px; color: #fff; background: rgba(0,0,0,0.6);
-      padding: 10px 20px; border-radius: 10px; display: none; z-index: 10;
-    }
-
-    #bottom-bar { 
-      position:absolute; bottom:0; left:0; right:0; height:100px; 
-      background:rgba(0,0,0,0.8); display:flex; align-items:center; 
-      justify-content:center; gap:15px; z-index:100; flex-wrap:wrap; 
-    }
-    button { 
-      padding:12px 24px; font-size:16px; cursor:pointer; border:none; border-radius:8px; 
-      transition: opacity 0.2s; font-weight: bold;
-    }
-    button:active { opacity: 0.7; }
-    .back-btn { background:#555; color:white; }
-    .next-btn { background:#ff9800; color:white; padding: 12px 40px; font-size: 18px; }
+    body { margin:0; background:#000; color:#fff; font-family:Arial; overflow:hidden; position: fixed; width: 100%; height: 100%; }
+    #main { display:flex; flex-direction: column; height:100vh; }
+    .video-box { flex:1; position:relative; background:#111; overflow: hidden; }
+    video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
+    /* 手机端上下排列，电脑端左右排列 */
+    @media (min-width: 600px) { #main { flex-direction: row; } }
+    #remote-status { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; text-align: center;}
+    #bottom-bar { position:absolute; bottom:0; width:100%; height:80px; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; gap:20px; z-index:100; }
+    button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; font-weight: bold; color: white; }
+    .next-btn { background:#ff9800; width: 120px; }
+    .back-btn { background:#444; }
   </style>
-
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -42,26 +25,25 @@
 
   <div id="main">
     <div class="video-box">
-      <div id="remote-status">等待对方连接...</div>
-      <video id="remote" autoplay playsinline></video>
+      <div id="remote-status">正在连接队友摄像头...</div>
+      <video id="remote" autoplay playsinline webkit-playsinline></video>
     </div>
     <div class="video-box">
-      <video id="local" autoplay playsinline muted></video>
+      <video id="local" autoplay playsinline webkit-playsinline muted></video>
     </div>
   </div>
 
   <div id="bottom-bar">
-    <button class="back-btn" onclick="goHome()">离开大厅</button>
-    <button class="next-btn" onclick="goNext()">⏭ 下一个</button> 
+    <button class="back-btn" onclick="goHome()">退出</button>
+    <button class="next-btn" onclick="goNext()">下一个 ⏭</button>
   </div>
 
   <script>
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
-
     let localStream = null;
     let peer = null;
-    let myJoinTime = Date.now(); 
+    let myJoinTime = Date.now();
 
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
@@ -77,50 +59,52 @@
 
     async function startLocalVideo() {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
         document.getElementById('local').srcObject = localStream;
       } catch (err) {
-        alert("请允许摄像头和麦克风权限！");
+        alert("请开启摄像头权限");
       }
     }
 
-    // --- 极度稳定的视频挂载逻辑 ---
     function showRemoteStream(stream) {
       const remoteVideo = document.getElementById('remote');
-      const statusText = document.getElementById('remote-status');
+      document.getElementById('remote-status').style.display = 'none';
       
       if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
-
-      statusText.style.display = "none"; // 隐藏等待文字
       
-      // 核心防黑屏策略：先彻底清空，稍微延时后再挂载新流
-      remoteVideo.srcObject = null;
-      setTimeout(() => {
-        remoteVideo.srcObject = stream;
-        remoteVideo.onloadedmetadata = () => {
-          remoteVideo.play().catch(e => {
-            console.log("尝试静音自动播放");
-            remoteVideo.muted = true;
-            remoteVideo.play();
-          });
-        };
-      }, 50);
+      remoteVideo.pause();
+      remoteVideo.srcObject = stream;
+      
+      // 移动端关键：必须先尝试播放
+      const playPromise = remoteVideo.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log("自动播放受限，等待点击");
+          // 如果报错，说明需要用户点一下屏幕
+          document.getElementById('remote-status').innerText = "点击屏幕开启声音/画面";
+          document.getElementById('remote-status').style.display = 'block';
+        });
+      }
     }
+
+    // 点击屏幕解锁所有音频/视频播放（移动端规范）
+    document.addEventListener('click', () => {
+      const rv = document.getElementById('remote');
+      if (rv) {
+        rv.muted = false;
+        rv.play().catch(()=>{});
+        document.getElementById('remote-status').style.display = 'none';
+      }
+    }, { once: false });
 
     function initPeer() {
       peer = new Peer({
-        config: {
-          'iceServers': [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' }
-          ]
-        }
+        config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
       });
 
       peer.on('open', (id) => {
-        const peerRef = db.ref(`rooms/${roomId}/peers/${id}`);
-        peerRef.set({ peerId: id, joined: myJoinTime });
-        peerRef.onDisconnect().remove(); 
+        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id, joined: myJoinTime });
+        db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
       });
 
       peer.on('call', (call) => {
@@ -128,64 +112,30 @@
         call.on('stream', showRemoteStream);
       });
 
-      db.ref(`rooms/${roomId}/peers`).on('child_added', (snapshot) => {
-        const other = snapshot.val();
+      db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
+        const other = snap.val();
         if (other.peerId !== peer.id && myJoinTime > other.joined) {
           const call = peer.call(other.peerId, localStream);
           call.on('stream', showRemoteStream);
         }
       });
 
-      // 对方离开房间时的处理
-      db.ref(`rooms/${roomId}/peers`).on('child_removed', (snapshot) => {
-        const leftUser = snapshot.val();
-        if (leftUser.peerId !== peer.id) {
-          document.getElementById('remote').srcObject = null;
-          const status = document.getElementById('remote-status');
-          status.innerText = "对方已断开连接，请点击下一个 ⏭";
-          status.style.display = "block";
-        }
+      db.ref(`rooms/${roomId}/peers`).on('child_removed', () => {
+        document.getElementById('remote').srcObject = null;
+        document.getElementById('remote-status').innerText = "对方已离开，请点下一个";
+        document.getElementById('remote-status').style.display = 'block';
       });
     }
 
-    // --- 全局点击解锁视频 (针对手机浏览器策略) ---
-    document.body.addEventListener('click', () => {
-      const remoteVideo = document.getElementById('remote');
-      if (remoteVideo.paused && remoteVideo.srcObject) {
-        remoteVideo.muted = false;
-        remoteVideo.play().catch(()=>{});
-      }
-    });
-
-    // --- 退出与跳转逻辑 ---
     function cleanup() {
-      if (peer) {
-        db.ref(`rooms/${roomId}/peers/${peer.id}`).remove();
-        peer.destroy();
-      }
+      if (peer) { db.ref(`rooms/${roomId}/peers/${peer.id}`).remove(); peer.destroy(); }
       if (localStream) localStream.getTracks().forEach(t => t.stop());
     }
 
-    function goNext() {
-      cleanup();
-      // 销毁当前房间，让对方也知道我走了
-      db.ref(`rooms/${roomId}`).remove();
-      // 核心：带上 auto=true 参数，大厅识别后会立刻重新匹配
-      window.location.replace("index.html?auto=true");
-    }
+    function goNext() { cleanup(); window.location.replace("index.html?auto=true"); }
+    function goHome() { cleanup(); window.location.replace("index.html"); }
 
-    function goHome() {
-      cleanup();
-      db.ref(`rooms/${roomId}`).remove();
-      window.location.replace("index.html");
-    }
-
-    async function startApp() {
-      await startLocalVideo();
-      initPeer();
-    }
-
-    startApp();
+    startLocalVideo().then(initPeer);
   </script>
 </body>
 </html>
