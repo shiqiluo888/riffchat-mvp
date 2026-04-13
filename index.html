@@ -2,40 +2,27 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>RiffChat - 发现新音乐队友</title>
   <style>
-    body {
-      margin: 0; background: #0a0a0a; color: white; font-family: 'Segoe UI', Arial, sans-serif;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden;
-    }
+    body { margin: 0; background: #0a0a0a; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
     .container { text-align: center; padding: 20px; }
     h1 { font-size: 3rem; margin-bottom: 10px; color: #ff4d4d; }
     p { color: #888; margin-bottom: 30px; }
-    .match-card {
-      background: #1a1a1a; padding: 40px; border-radius: 20px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    #status { margin-bottom: 20px; font-size: 18px; color: #4caf50; min-height: 24px; }
-    .btn-start {
-      background: linear-gradient(45deg, #ff4d4d, #f9cb28); border: none; padding: 15px 40px; color: white;
-      font-size: 20px; font-weight: bold; border-radius: 50px; cursor: pointer; transition: transform 0.2s;
-    }
-    .btn-start:hover { transform: scale(1.05); }
-    .btn-start:disabled { background: #444; cursor: not-allowed; opacity: 0.7; }
-    .loader {
-      border: 4px solid #333; border-top: 4px solid #ff4d4d; border-radius: 50%; width: 30px; height: 30px;
-      animation: spin 1s linear infinite; display: none; margin: 20px auto;
-    }
+    .match-card { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 280px; }
+    #status { margin-bottom: 20px; font-size: 16px; color: #4caf50; min-height: 48px; line-height: 1.4; }
+    .btn-start { background: linear-gradient(45deg, #ff4d4d, #f9cb28); border: none; padding: 15px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; width: 100%; }
+    .btn-start:disabled { background: #444; opacity: 0.7; }
+    .loader { border: 4px solid #333; border-top: 4px solid #ff4d4d; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; display: none; margin: 20px auto; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
-
   <div class="container">
     <h1>RiffChat</h1>
-    <p>实时音乐同步视频交流平台</p>
+    <p>实时音乐视频交互</p>
     <div class="match-card">
       <div id="status">准备好开始了吗？</div>
       <div id="loader" class="loader"></div>
@@ -44,12 +31,8 @@
   </div>
 
   <script>
-    // --- 解决手机端后退卡死问题 (BFCache清理) ---
-    window.addEventListener("pageshow", function(event) {
-      if (event.persisted) {
-        window.location.reload(); // 如果是从缓存加载的，强制刷新
-      }
-    });
+    // 强制解决移动端 BFCache 问题
+    window.onpageshow = (e) => { if (e.persisted) window.location.reload(); };
 
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
@@ -63,59 +46,43 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // --- 自动匹配逻辑 (检测 URL 参数) ---
     window.onload = () => {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('auto') === 'true') {
-        startMatching(); // 如果带着 auto=true，进来直接开冲！
-      }
+      if (new URLSearchParams(window.location.search).get('auto') === 'true') startMatching();
     };
 
     async function startMatching() {
       const btn = document.getElementById('startBtn');
       const statusText = document.getElementById('status');
       const loader = document.getElementById('loader');
-
       btn.disabled = true;
-      statusText.innerText = "正在搜寻队友...";
       loader.style.display = "block";
+      statusText.innerText = "正在寻找队友...";
 
       try {
         const snapshot = await db.ref('rooms').once('value');
-        let targetRoomId = null;
+        let targetId = null;
+        snapshot.forEach(child => { if (child.val().status === 'waiting') { targetId = child.key; return true; } });
 
-        snapshot.forEach(child => {
-          if (child.val().status === 'waiting') {
-            targetRoomId = child.key;
-            return true; 
-          }
-        });
-
-        if (targetRoomId) {
-          await db.ref(`rooms/${targetRoomId}`).update({ status: 'chatting' });
-          statusText.innerText = "匹配成功！正在建立连接...";
-          setTimeout(() => { window.location.replace(`chat.html?room=${targetRoomId}`); }, 500);
+        if (targetId) {
+          await db.ref(`rooms/${targetId}`).update({ status: 'chatting' });
+          statusText.innerText = "匹配成功，连接中...";
+          setTimeout(() => window.location.replace(`chat.html?room=${targetId}`), 300);
         } else {
-          const newRoomRef = db.ref('rooms').push();
-          const newRoomId = newRoomRef.key;
-          await newRoomRef.set({ status: "waiting", createdAt: firebase.database.ServerValue.TIMESTAMP });
-          newRoomRef.onDisconnect().remove();
-
-          statusText.innerText = "正在等待有缘人加入...";
-          
-          const statusRef = db.ref(`rooms/${newRoomId}/status`);
+          const newRef = db.ref('rooms').push();
+          await newRef.set({ status: "waiting", createdAt: firebase.database.ServerValue.TIMESTAMP });
+          newRef.onDisconnect().remove();
+          const statusRef = db.ref(`rooms/${newRef.key}/status`);
           statusRef.on('value', (snap) => {
             if (snap.val() === 'chatting') {
               statusRef.off();
-              statusText.innerText = "匹配成功！正在建立连接...";
-              setTimeout(() => { window.location.replace(`chat.html?room=${newRoomId}`); }, 500);
+              statusText.innerText = "队友已就位...";
+              setTimeout(() => window.location.replace(`chat.html?room=${newRef.key}`), 300);
             }
           });
         }
-      } catch (err) {
-        statusText.innerText = "网络异常，请重试";
+      } catch (e) {
+        statusText.innerText = "连接失败，请刷新";
         btn.disabled = false;
-        loader.style.display = "none";
       }
     }
   </script>
