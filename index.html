@@ -5,14 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>RiffChat - 发现新音乐队友</title>
   <style>
-    body { margin: 0; background: #0a0a0a; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    body { margin: 0; background: #0a0a0a; color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
     .container { text-align: center; padding: 20px; }
     h1 { font-size: 3rem; margin-bottom: 10px; color: #ff4d4d; }
-    p { color: #888; margin-bottom: 30px; }
-    .match-card { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 280px; }
-    #status { margin-bottom: 20px; font-size: 16px; color: #4caf50; min-height: 48px; line-height: 1.4; }
-    .btn-start { background: linear-gradient(45deg, #ff4d4d, #f9cb28); border: none; padding: 15px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; width: 100%; }
-    .btn-start:disabled { background: #444; opacity: 0.7; }
+    p { color: #888; margin-bottom: 10px; }
+    
+    /* 在线人数提示 */
+    .online-count { font-size: 14px; color: #4caf50; margin-bottom: 30px; background: rgba(76, 175, 80, 0.1); padding: 5px 15px; border-radius: 20px; display: inline-block; }
+    
+    .match-card { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 280px; position: relative; }
+    #status { margin-bottom: 20px; font-size: 16px; color: #fff; min-height: 48px; line-height: 1.4; }
+    
+    .btn-start { background: linear-gradient(45deg, #ff4d4d, #f9cb28); border: none; padding: 15px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; width: 100%; transition: 0.3s; }
+    .btn-start:disabled { background: #444; opacity: 0.7; pointer-events: none; }
+    
+    /* 取消按钮 */
+    .btn-cancel { background: #555; border: none; padding: 10px 20px; color: white; font-size: 14px; border-radius: 30px; cursor: pointer; margin-top: 15px; display: none; width: 100%; }
+    .btn-cancel:hover { background: #ff4d4d; }
+
     .loader { border: 4px solid #333; border-top: 4px solid #ff4d4d; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; display: none; margin: 20px auto; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
@@ -23,15 +33,17 @@
   <div class="container">
     <h1>RiffChat</h1>
     <p>实时音乐视频交互</p>
+    <div class="online-count">🟢 当前在线: <span id="onlineNum">计算中...</span> 人</div>
+    
     <div class="match-card">
       <div id="status">准备好开始了吗？</div>
       <div id="loader" class="loader"></div>
       <button id="startBtn" class="btn-start" onclick="startMatching()">开始匹配</button>
+      <button id="cancelBtn" class="btn-cancel" onclick="cancelMatching()">取消匹配</button>
     </div>
   </div>
 
   <script>
-    // 强制解决移动端 BFCache 问题
     window.onpageshow = (e) => { if (e.persisted) window.location.reload(); };
 
     const firebaseConfig = {
@@ -46,15 +58,35 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    let currentRoomRef = null; // 记录当前等待的房间，方便取消
+    let isMatching = false;
+
+    // --- 监听真实在线人数 ---
+    db.ref('rooms').on('value', (snapshot) => {
+      let count = 0;
+      snapshot.forEach(child => {
+        const room = child.val();
+        if (room.status === 'waiting') count += 1;
+        else if (room.status === 'chatting') count += 2;
+      });
+      document.getElementById('onlineNum').innerText = count === 0 ? "1" : count; // 至少显示自己1个人
+    });
+
     window.onload = () => {
       if (new URLSearchParams(window.location.search).get('auto') === 'true') startMatching();
     };
 
     async function startMatching() {
+      if (isMatching) return;
+      isMatching = true;
+
       const btn = document.getElementById('startBtn');
+      const cancelBtn = document.getElementById('cancelBtn');
       const statusText = document.getElementById('status');
       const loader = document.getElementById('loader');
-      btn.disabled = true;
+      
+      btn.style.display = "none";
+      cancelBtn.style.display = "block";
       loader.style.display = "block";
       statusText.innerText = "正在寻找队友...";
 
@@ -66,24 +98,43 @@
         if (targetId) {
           await db.ref(`rooms/${targetId}`).update({ status: 'chatting' });
           statusText.innerText = "匹配成功，连接中...";
+          cancelBtn.style.display = "none"; // 匹配成功就不能取消了
           setTimeout(() => window.location.replace(`chat.html?room=${targetId}`), 300);
         } else {
-          const newRef = db.ref('rooms').push();
-          await newRef.set({ status: "waiting", createdAt: firebase.database.ServerValue.TIMESTAMP });
-          newRef.onDisconnect().remove();
-          const statusRef = db.ref(`rooms/${newRef.key}/status`);
+          currentRoomRef = db.ref('rooms').push();
+          await currentRoomRef.set({ status: "waiting", createdAt: firebase.database.ServerValue.TIMESTAMP });
+          currentRoomRef.onDisconnect().remove();
+          
+          const statusRef = db.ref(`rooms/${currentRoomRef.key}/status`);
           statusRef.on('value', (snap) => {
             if (snap.val() === 'chatting') {
               statusRef.off();
               statusText.innerText = "队友已就位...";
-              setTimeout(() => window.location.replace(`chat.html?room=${newRef.key}`), 300);
+              cancelBtn.style.display = "none";
+              setTimeout(() => window.location.replace(`chat.html?room=${currentRoomRef.key}`), 300);
             }
           });
         }
       } catch (e) {
-        statusText.innerText = "连接失败，请刷新";
-        btn.disabled = false;
+        resetUI("连接失败，请重试");
       }
+    }
+
+    // --- 取消匹配逻辑 ---
+    function cancelMatching() {
+      if (currentRoomRef) {
+        currentRoomRef.remove(); // 从数据库销毁房间
+        currentRoomRef = null;
+      }
+      resetUI("已取消匹配");
+    }
+
+    function resetUI(msg) {
+      isMatching = false;
+      document.getElementById('startBtn').style.display = "block";
+      document.getElementById('cancelBtn').style.display = "none";
+      document.getElementById('loader').style.display = "none";
+      document.getElementById('status').innerText = msg;
     }
   </script>
 </body>
