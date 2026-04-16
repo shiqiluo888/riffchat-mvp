@@ -1,55 +1,47 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>RiffChat 房间</title>
   <style>
-    body { margin:0; background:#000; color:#fff; font-family:Arial; overflow:hidden; position: fixed; width: 100%; height: 100%; }
-    #main { display:flex; flex-direction: column; height:100vh; }
-    .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
-    @media (min-width: 600px) { #main { flex-direction: row; } }
-    #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 10px; text-align: center; font-size: 16px; font-weight: bold; }
-    #bottom-bar { position:absolute; bottom:0; width:100%; height:80px; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; gap:20px; z-index:100; }
-    button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; }
-    .next-btn { background:#ff9800; width: 120px; }
-    .back-btn { background:#444; }
+    body { margin: 0; background: #000; color: white; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .video-grid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: #222; position: relative; }
+    .video-container { position: relative; background: #111; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+    .label { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 4px; font-size: 12px; z-index: 10; }
+    
+    .controls { height: 80px; background: #111; display: flex; align-items: center; justify-content: center; gap: 15px; padding: 0 20px; }
+    button { padding: 12px 24px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-exit { background: #333; color: white; }
+    .btn-next { background: #ff9800; color: white; }
+    
+    #loadingOverlay { position: absolute; top: 0; left: 0; width: 50%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 5; transition: opacity 0.5s; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-  <div id="main">
-    <div class="video-box">
-      <div id="remote-status">正在连接队友摄像头...</div>
-      <video id="remote" autoplay playsinline webkit-playsinline></video>
+  <div class="video-grid">
+    <div class="video-container">
+      <div id="loadingOverlay">正在连接队友摄像头...</div>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div class="label">队友</div>
     </div>
-    <div class="video-box">
-      <video id="local" autoplay playsinline webkit-playsinline muted></video>
+    <div class="video-container">
+      <video id="localVideo" autoplay playsinline muted></video>
+      <div class="label">你</div>
     </div>
   </div>
 
-  <div id="bottom-bar">
-    <button class="back-btn" onclick="goHome()">退出大厅</button>
-    <button class="next-btn" onclick="goNext()">下一个 ⏭</button>
+  <div class="controls">
+    <button class="btn-exit" onclick="goHome()">退出大厅</button>
+    <button class="btn-next" onclick="nextMatch()">下一个 ⏭️</button>
   </div>
 
   <script>
-    // 在聊天页面也注册存在感，确保总人数统计正确
-const myPresenceRef = firebase.database().ref('presence').push();
-myPresenceRef.set(true);
-myPresenceRef.onDisconnect().remove();
-    
-    const params = new URLSearchParams(window.location.search);
-    const roomId = params.get('room');
-    let localStream = null;
-    let peer = null;
-    let connectTimeout = null;
-
-    // 1. Firebase 初始化
+    // 1. 初始化 Firebase (必须在最前面)
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -59,110 +51,129 @@ myPresenceRef.onDisconnect().remove();
       appId: "1:597645980095:web:607eefd061c062fed7710a",
       databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"
     };
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
     const db = firebase.database();
 
-    // 2. 聊天室的存在感 (Presence) - 让全站总人数包含正在聊天的人
-    const chatPresenceRef = db.ref('presence').push();
-    db.ref('.info/connected').on('value', (snap) => {
-      if (snap.val() === true) {
-        chatPresenceRef.set({ status: 'chatting', room: roomId });
-        chatPresenceRef.onDisconnect().remove();
-      }
-    });
+    // 2. 在线人数追踪 (Presence)
+    const myPresenceRef = db.ref('presence').push();
+    myPresenceRef.set(true);
+    myPresenceRef.onDisconnect().remove();
 
-    async function startLocalVideo() {
+    // 3. 核心变量定义
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomId = urlParams.get('room');
+    let localStream;
+    let peerConnection;
+    let isOfferer = false;
+    const roomRef = db.ref(`rooms/${roomId}`);
+    
+    const servers = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] };
+
+    // 4. 初始化视频流
+    async function init() {
+      if (!roomId) return goHome();
+      
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
-        document.getElementById('local').srcObject = localStream;
-      } catch (err) {
-        alert("请开启摄像头和麦克风权限！");
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById('localVideo').srcObject = localStream;
+        setupWebRTC();
+      } catch (e) {
+        alert("无法访问摄像头，请确保已授权");
+        goHome();
       }
     }
 
-    function showRemoteStream(stream) {
-      if (connectTimeout) clearTimeout(connectTimeout); 
+    async function setupWebRTC() {
+      peerConnection = new RTCPeerConnection(servers);
       
-      const remoteVideo = document.getElementById('remote');
-      document.getElementById('remote-status').style.display = 'none';
+      // 添加本地流
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      // 监听远程流
+      peerConnection.ontrack = (event) => {
+        document.getElementById('remoteVideo').srcObject = event.streams[0];
+        document.getElementById('loadingOverlay').style.opacity = '0';
+        setTimeout(() => document.getElementById('loadingOverlay').style.display = 'none', 500);
+      };
+
+      // 选出谁是发起者 (逻辑：房间里第一个人)
+      const snap = await roomRef.once('value');
+      const roomData = snap.val();
       
-      if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
-      
-      remoteVideo.pause();
-      remoteVideo.srcObject = stream;
-      
-      const playPromise = remoteVideo.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          document.getElementById('remote-status').innerText = "由于浏览器限制，请点击屏幕任意位置开启对方画面";
-          document.getElementById('remote-status').style.display = 'block';
-        });
-      }
+      // 这里的逻辑可以根据你的具体业务调整，简单处理：监听信令
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          roomRef.child('candidates').push(event.candidate.toJSON());
+        }
+      };
+
+      // 信令交互逻辑 (Offer/Answer)
+      handleSignaling();
     }
 
-    // 移动端点击解锁自动播放限制
-    document.addEventListener('click', () => {
-      const rv = document.getElementById('remote');
-      if (rv && rv.paused) {
-        rv.muted = false;
-        rv.play().catch(()=>{});
-        document.getElementById('remote-status').style.display = 'none';
-      }
-    }, { once: false });
-
-    // 3. 核心 WebRTC 连接逻辑
-    function initPeer() {
-      peer = new Peer({
-        config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
-      });
-
-      peer.on('open', (id) => {
-        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id });
-        db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
-
-        connectTimeout = setTimeout(() => {
-          const statusEl = document.getElementById('remote-status');
-          if (statusEl.style.display !== 'none') {
-            statusEl.innerText = "连接超时，对方网络可能不佳，请直接点击【下一个】⏭";
-          }
-        }, 12000);
-      });
-
-      peer.on('call', (call) => {
-        call.answer(localStream);
-        call.on('stream', showRemoteStream);
-      });
-
-      // 监听新加入的节点，通过 ID 字符串比较来决定谁拨打电话，彻底解决死锁
-      db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
-        const other = snap.val();
-        if (other.peerId !== peer.id && peer.id > other.peerId) {
-          setTimeout(() => {
-            const call = peer.call(other.peerId, localStream);
-            call.on('stream', showRemoteStream);
-          }, 1500); 
+    async function handleSignaling() {
+      // 简单信令演示：实际项目中这里需要更严谨的 Offer/Answer 交换
+      // 这里假设第一个进入房间的是 Offer 端
+      roomRef.child('offer').on('value', async (snap) => {
+        const data = snap.val();
+        if (data && !peerConnection.currentRemoteDescription) {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          roomRef.update({ answer });
         }
       });
 
-      db.ref(`rooms/${roomId}/peers`).on('child_removed', () => {
-        document.getElementById('remote').srcObject = null;
-        document.getElementById('remote-status').innerText = "对方已断开连接，请点下一个 ⏭";
-        document.getElementById('remote-status').style.display = 'block';
+      roomRef.child('answer').on('value', async (snap) => {
+        const data = snap.val();
+        if (data && !peerConnection.currentRemoteDescription) {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+        }
       });
+
+      roomRef.child('candidates').on('child_added', (snap) => {
+        const candidate = new RTCIceCandidate(snap.val());
+        peerConnection.addIceCandidate(candidate);
+      });
+
+      // 如果我是第一个，创建 Offer
+      const roomSnap = await roomRef.once('value');
+      if (!roomSnap.hasChild('offer')) {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        roomRef.update({ offer });
+      }
     }
 
-    // 4. 清理资源逻辑（退出前必须执行）
+    // 5. 导航与清理
     function cleanup() {
-      if (connectTimeout) clearTimeout(connectTimeout);
-      chatPresenceRef.remove(); // 离开聊天室，清除存在记录
-      if (peer) { db.ref(`rooms/${roomId}/peers/${peer.id}`).remove(); peer.destroy(); }
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      if (localStream) localStream.getTracks().forEach(track => track.stop());
+      if (peerConnection) peerConnection.close();
+      if (myPresenceRef) myPresenceRef.remove();
+      roomRef.off();
     }
 
-    function goNext() { cleanup(); window.location.replace("index.html?auto=true"); }
-    function goHome() { cleanup(); window.location.replace("index.html"); }
+    function goHome() {
+      cleanup();
+      window.location.replace('index.html');
+    }
 
-    startLocalVideo().then(initPeer);
+    function nextMatch() {
+      cleanup();
+      window.location.replace('index.html?auto=true');
+    }
+
+    // 启动
+    init();
+
+    // 异常断开处理
+    roomRef.on('value', snap => {
+      if (!snap.exists()) goHome();
+    });
+    roomRef.onDisconnect().remove();
+
   </script>
 </body>
 </html>
