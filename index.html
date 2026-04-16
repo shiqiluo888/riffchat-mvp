@@ -9,20 +9,11 @@
     .container { text-align: center; padding: 20px; }
     h1 { font-size: 3rem; margin-bottom: 10px; color: #ff4d4d; }
     p { color: #888; margin-bottom: 10px; }
-    
-    /* 在线人数提示 */
     .online-count { font-size: 14px; color: #4caf50; margin-bottom: 30px; background: rgba(76, 175, 80, 0.1); padding: 5px 15px; border-radius: 20px; display: inline-block; }
-    
     .match-card { background: #1a1a1a; padding: 40px; border-radius: 20px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 280px; position: relative; }
     #status { margin-bottom: 20px; font-size: 16px; color: #fff; min-height: 48px; line-height: 1.4; }
-    
     .btn-start { background: linear-gradient(45deg, #ff4d4d, #f9cb28); border: none; padding: 15px 40px; color: white; font-size: 18px; font-weight: bold; border-radius: 50px; cursor: pointer; width: 100%; transition: 0.3s; }
-    .btn-start:disabled { background: #444; opacity: 0.7; pointer-events: none; }
-    
-    /* 取消按钮 */
     .btn-cancel { background: #555; border: none; padding: 10px 20px; color: white; font-size: 14px; border-radius: 30px; cursor: pointer; margin-top: 15px; display: none; width: 100%; }
-    .btn-cancel:hover { background: #ff4d4d; }
-
     .loader { border: 4px solid #333; border-top: 4px solid #ff4d4d; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; display: none; margin: 20px auto; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
@@ -33,7 +24,7 @@
   <div class="container">
     <h1>RiffChat</h1>
     <p>实时音乐视频交互</p>
-    <div class="online-count">🟢 当前在线: <span id="onlineNum">计算中...</span> 人</div>
+    <div class="online-count">🟢 全站实时在线: <span id="onlineNum">1</span> 人</div>
     
     <div class="match-card">
       <div id="status">准备好开始了吗？</div>
@@ -58,19 +49,26 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let currentRoomRef = null; // 记录当前等待的房间，方便取消
-    let isMatching = false;
-
-    // --- 监听真实在线人数 ---
-    db.ref('rooms').on('value', (snapshot) => {
-      let count = 0;
-      snapshot.forEach(child => {
-        const room = child.val();
-        if (room.status === 'waiting') count += 1;
-        else if (room.status === 'chatting') count += 2;
-      });
-      document.getElementById('onlineNum').innerText = count === 0 ? "1" : count; // 至少显示自己1个人
+    // --- 【新增】全站在线人数追踪系统 ---
+    const myPresenceRef = db.ref('presence').push();
+    db.ref('.info/connected').on('value', (snap) => {
+      if (snap.val() === true) {
+        // 只要连上 Firebase，就在 presence 节点下占位
+        myPresenceRef.set(true);
+        // 关键：一旦用户断开（关闭网页、断网），Firebase 自动删除这个占位
+        myPresenceRef.onDisconnect().remove();
+      }
     });
+
+    // 实时更新显示人数：直接数 presence 下有多少个占位
+    db.ref('presence').on('value', (snapshot) => {
+      const count = snapshot.numChildren();
+      document.getElementById('onlineNum').innerText = count > 0 ? count : 1;
+      console.log("实时人数更新为:", count);
+    });
+
+    let currentRoomRef = null;
+    let isMatching = false;
 
     window.onload = () => {
       if (new URLSearchParams(window.location.search).get('auto') === 'true') startMatching();
@@ -80,15 +78,10 @@
       if (isMatching) return;
       isMatching = true;
 
-      const btn = document.getElementById('startBtn');
-      const cancelBtn = document.getElementById('cancelBtn');
-      const statusText = document.getElementById('status');
-      const loader = document.getElementById('loader');
-      
-      btn.style.display = "none";
-      cancelBtn.style.display = "block";
-      loader.style.display = "block";
-      statusText.innerText = "正在寻找队友...";
+      document.getElementById('startBtn').style.display = "none";
+      document.getElementById('cancelBtn').style.display = "block";
+      document.getElementById('loader').style.display = "block";
+      document.getElementById('status').innerText = "正在寻找队友...";
 
       try {
         const snapshot = await db.ref('rooms').once('value');
@@ -97,9 +90,11 @@
 
         if (targetId) {
           await db.ref(`rooms/${targetId}`).update({ status: 'chatting' });
-          statusText.innerText = "匹配成功，连接中...";
-          cancelBtn.style.display = "none"; // 匹配成功就不能取消了
-          setTimeout(() => window.location.replace(`chat.html?room=${targetId}`), 300);
+          document.getElementById('status').innerText = "匹配成功，连接中...";
+          // 跳转前先把自己从 presence 里移除，避免重复计算，或由新页面重新注册
+          myPresenceRef.remove().then(() => {
+            window.location.replace(`chat.html?room=${targetId}`);
+          });
         } else {
           currentRoomRef = db.ref('rooms').push();
           await currentRoomRef.set({ status: "waiting", createdAt: firebase.database.ServerValue.TIMESTAMP });
@@ -109,9 +104,10 @@
           statusRef.on('value', (snap) => {
             if (snap.val() === 'chatting') {
               statusRef.off();
-              statusText.innerText = "队友已就位...";
-              cancelBtn.style.display = "none";
-              setTimeout(() => window.location.replace(`chat.html?room=${currentRoomRef.key}`), 300);
+              document.getElementById('status').innerText = "队友已就位...";
+              myPresenceRef.remove().then(() => {
+                window.location.replace(`chat.html?room=${currentRoomRef.key}`);
+              });
             }
           });
         }
@@ -120,10 +116,9 @@
       }
     }
 
-    // --- 取消匹配逻辑 ---
     function cancelMatching() {
       if (currentRoomRef) {
-        currentRoomRef.remove(); // 从数据库销毁房间
+        currentRoomRef.remove();
         currentRoomRef = null;
       }
       resetUI("已取消匹配");
