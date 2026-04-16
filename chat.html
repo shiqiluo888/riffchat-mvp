@@ -38,6 +38,11 @@
   </div>
 
   <script>
+    // 在聊天页面也注册存在感，确保总人数统计正确
+const myPresenceRef = firebase.database().ref('presence').push();
+myPresenceRef.set(true);
+myPresenceRef.onDisconnect().remove();
+    
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
     let localStream = null;
