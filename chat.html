@@ -12,7 +12,8 @@
     @media (min-width: 600px) { #main { flex-direction: row; } }
     #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 10px; text-align: center; font-size: 16px; font-weight: bold; }
     #bottom-bar { position:absolute; bottom:0; width:100%; height:80px; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; gap:20px; z-index:100; }
-    button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; }
+    button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; transition: 0.2s; }
+    button:hover { opacity: 0.8; }
     .next-btn { background:#ff9800; width: 120px; }
     .back-btn { background:#444; }
   </style>
@@ -38,12 +39,14 @@
   </div>
 
   <script>
+    // 核心变量定义
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
     let localStream = null;
     let peer = null;
     let connectTimeout = null;
 
+    // 1. 初始化 Firebase (加上了安全保护，彻底防止"No Firebase App"报错)
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
@@ -53,18 +56,34 @@
       appId: "1:597645980095:web:607eefd061c062fed7710a",
       databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"
     };
-    firebase.initializeApp(firebaseConfig);
+    
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
     const db = firebase.database();
 
+    // 2. 【新增】在线人数占位系统 (Presence)
+    // 确保用户进入聊天室后，大厅的"当前在线"依然会把这个人算进去
+    const myPresenceRef = db.ref('presence').push();
+    db.ref('.info/connected').on('value', (snap) => {
+      if (snap.val() === true) {
+        myPresenceRef.set(true);
+        myPresenceRef.onDisconnect().remove();
+      }
+    });
+
+    // 3. 开启本地摄像头
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
         document.getElementById('local').srcObject = localStream;
       } catch (err) {
-        alert("请开启摄像头和麦克风权限！");
+        alert("请开启摄像头和麦克风权限！否则无法进行视频聊天。");
+        goHome(); // 没权限直接退回大厅
       }
     }
 
+    // 4. 显示远程视频流
     function showRemoteStream(stream) {
       if (connectTimeout) clearTimeout(connectTimeout); // 成功拿到流，取消超时警告
       
@@ -85,6 +104,7 @@
       }
     }
 
+    // 解除浏览器自动播放限制
     document.addEventListener('click', () => {
       const rv = document.getElementById('remote');
       if (rv && rv.paused) {
@@ -94,7 +114,13 @@
       }
     }, { once: false });
 
+    // 5. 初始化 PeerJS (视频连线核心)
     function initPeer() {
+      if (!roomId) {
+        alert("房间号不存在！");
+        return goHome();
+      }
+
       peer = new Peer({
         config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
       });
@@ -119,7 +145,7 @@
 
       db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
         const other = snap.val();
-        // 【核心修复】用 ID 字符串大小做绝对的判断，谁的 ID 大，谁就主动打电话
+        // 核心修复：用 ID 字符串大小做绝对的判断，谁的 ID 大，谁就主动打电话
         if (other.peerId !== peer.id && peer.id > other.peerId) {
           // 延时1.5秒打电话，确保对面的 peer.on('call') 已经准备就绪
           setTimeout(() => {
@@ -136,15 +162,33 @@
       });
     }
 
+    // 6. 退出、清理与按钮逻辑
     function cleanup() {
       if (connectTimeout) clearTimeout(connectTimeout);
-      if (peer) { db.ref(`rooms/${roomId}/peers/${peer.id}`).remove(); peer.destroy(); }
-      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      if (peer) { 
+        db.ref(`rooms/${roomId}/peers/${peer.id}`).remove(); 
+        peer.destroy(); 
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+      // 退出聊天室时，清理自己的人数统计占位
+      if (myPresenceRef) {
+        myPresenceRef.remove();
+      }
     }
 
-    function goNext() { cleanup(); window.location.replace("index.html?auto=true"); }
-    function goHome() { cleanup(); window.location.replace("index.html"); }
+    function goNext() { 
+      cleanup(); 
+      window.location.replace("index.html?auto=true"); 
+    }
+    
+    function goHome() { 
+      cleanup(); 
+      window.location.replace("index.html"); 
+    }
 
+    // 启动流程
     startLocalVideo().then(initPeer);
   </script>
 </body>
