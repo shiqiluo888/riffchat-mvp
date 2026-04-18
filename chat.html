@@ -5,27 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>RiffChat 房间 - 共享视听</title>
   <style>
-    body { margin:0; background:#000; color:#fff; font-family:Arial; overflow:hidden; position: fixed; width: 100%; height: 100%; display: flex; flex-direction: column; }
+    body { 
+      margin: 0; 
+      background: #000; 
+      color: #fff; 
+      font-family: Arial; 
+      overflow: hidden; 
+      height: 100vh; /* 严格限制为屏幕高度 */
+      width: 100vw;
+      display: flex; 
+      flex-direction: column; 
+    }
     
     /* 顶部：共享媒体播放区 */
-    #media-section { height: 40vh; background: #1a1a1a; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; border-bottom: 2px solid #333; z-index: 10; }
-    .yt-controls { display: flex; gap: 10px; width: 100%; max-width: 800px; margin-bottom: 10px; }
-    .yt-controls input { flex: 1; padding: 10px; border-radius: 6px; border: none; font-size: 14px; background: #333; color: white; outline: none; }
+    #media-section { 
+      height: 35vh; /* 稍微缩小一点，给下面摄像头留点空间 */
+      flex-shrink: 0; /* 核心修复：绝对不被压缩 */
+      background: #1a1a1a; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center; 
+      padding: 10px; 
+      box-sizing: border-box;
+      border-bottom: 2px solid #333; 
+      z-index: 10; 
+    }
+    .yt-controls { display: flex; gap: 10px; width: 100%; max-width: 800px; margin-bottom: 10px; height: 40px; flex-shrink: 0; }
+    .yt-controls input { flex: 1; padding: 0 10px; border-radius: 6px; border: none; font-size: 14px; background: #333; color: white; outline: none; }
     .yt-controls input::placeholder { color: #888; }
-    .yt-controls button { background: #ff0000; padding: 10px 20px; border-radius: 6px; color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+    .yt-controls button { background: #ff0000; padding: 0 20px; border-radius: 6px; color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; white-space: nowrap; }
     .yt-controls button:hover { background: #cc0000; }
     #player-wrapper { width: 100%; max-width: 800px; flex: 1; background: #000; border-radius: 8px; overflow: hidden; position: relative; }
     #player-placeholder { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; pointer-events:none; }
 
     /* 中部：视频通话区 */
-    #camera-section { flex: 1; display:flex; flex-direction: column; position: relative; }
+    #camera-section { 
+      flex: 1; 
+      min-height: 0; /* 核心修复：防止内部视频把 Flexbox 撑爆溢出屏幕 */
+      display:flex; 
+      flex-direction: column; 
+      position: relative; 
+    }
     @media (min-width: 600px) { #camera-section { flex-direction: row; } }
     .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #222; }
     video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
     #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 10px; text-align: center; font-size: 16px; font-weight: bold; }
     
     /* 底部：控制台 */
-    #bottom-bar { height:70px; background:rgba(0,0,0,0.9); display:flex; align-items:center; justify-content:center; gap:20px; z-index:100; border-top: 1px solid #333; }
+    #bottom-bar { 
+      height: 70px; 
+      flex-shrink: 0; /* 核心修复：保证底栏高度绝对锁定，永远显示 */
+      background: rgba(0,0,0,0.9); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 20px; 
+      z-index: 100; 
+      border-top: 1px solid #333; 
+    }
     .btn { padding:12px 24px; font-size:15px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; transition: 0.2s; }
     .btn:hover { opacity: 0.8; }
     .next-btn { background:#ff9800; width: 130px; }
@@ -94,9 +132,8 @@
     // --- 2. YouTube 同步播放器逻辑 ---
     let ytPlayer = null;
     let isYtReady = false;
-    let isSyncing = false; // 同步锁，防止两人循环互相触发进度条
+    let isSyncing = false; 
 
-    // 动态加载 YouTube API
     const tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -111,17 +148,15 @@
         playerVars: { 'autoplay': 1, 'controls': 1, 'rel': 0 },
         events: { 'onStateChange': onPlayerStateChange }
       });
-      listenToMediaSync(); // API加载完毕后，开始监听数据库里的歌曲
+      listenToMediaSync(); 
     }
 
-    // 提取 YouTube 链接中的 ID
     function extractVideoID(url) {
       const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
       const match = url.match(regExp);
       return (match && match[2].length === 11) ? match[2] : null;
     }
 
-    // 点击"全屏同步播放"按钮
     function shareVideo() {
       if (!isYtReady || !peer) return alert("播放器或网络还在初始化，请稍等...");
       const url = document.getElementById('yt-url').value;
@@ -129,20 +164,18 @@
       if (!vidId) return alert("解析失败，请确保粘贴的是正确的 YouTube 链接！");
 
       document.getElementById('player-placeholder').style.display = 'none';
-      document.getElementById('yt-url').value = ''; // 清空输入框
+      document.getElementById('yt-url').value = ''; 
       
-      // 告诉 Firebase 我切歌了
       db.ref(`rooms/${roomId}/media`).set({
         videoId: vidId,
         state: 'playing',
         time: 0,
-        sender: peer.id // 标记这是我发的
+        sender: peer.id 
       });
     }
 
-    // 当用户手动点暂停/播放时触发
     function onPlayerStateChange(event) {
-      if (isSyncing || !peer) return; // 如果是正在接受对面的同步信号，就不要再发回去了（防止死循环）
+      if (isSyncing || !peer) return; 
 
       let stateStr = null;
       if (event.data == YT.PlayerState.PLAYING) stateStr = 'playing';
@@ -162,22 +195,19 @@
       }
     }
 
-    // 监听对面的切歌/暂停操作
     function listenToMediaSync() {
       db.ref(`rooms/${roomId}/media`).on('value', (snap) => {
         const data = snap.val();
         if (!data || !ytPlayer || !peer) return;
         
-        // 如果这个动作是我自己发出的，忽略它
         if (data.sender === peer.id) return; 
 
-        isSyncing = true; // 上锁
+        isSyncing = true; 
         document.getElementById('player-placeholder').style.display = 'none';
 
         let currentVid = '';
         try { currentVid = ytPlayer.getVideoData().video_id; } catch(e){}
 
-        // 如果对面切了新歌
         if (data.videoId && data.videoId !== currentVid) {
           ytPlayer.loadVideoById(data.videoId, data.time);
           if (data.state === 'paused') {
@@ -185,7 +215,6 @@
             return;
           }
         } else {
-          // 如果是同一首歌，检查进度是否差得太多（比如对面拖动了进度条）
           const currentTime = ytPlayer.getCurrentTime() || 0;
           if (Math.abs(currentTime - data.time) > 2) {
             ytPlayer.seekTo(data.time, true);
@@ -194,12 +223,11 @@
           else if (data.state === 'paused') ytPlayer.pauseVideo();
         }
 
-        // 1秒后解锁，允许再次捕捉用户自己的操作
         setTimeout(() => { isSyncing = false; }, 1000);
       });
     }
 
-    // --- 3. 视频通话核心 (保留之前的完整逻辑) ---
+    // --- 3. 视频通话核心 ---
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
@@ -268,7 +296,6 @@
         document.getElementById('remote').srcObject = null;
         document.getElementById('remote-status').innerText = "对方已离开，请点下一个 ⏭";
         document.getElementById('remote-status').style.display = 'block';
-        // 对面离开时，如果是他放的音乐，音乐其实可以继续播，不需要刻意停掉
       });
     }
 
