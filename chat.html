@@ -2,25 +2,32 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <title>RiffChat 房间 - 共享视听</title>
   <style>
-    body { 
+    /* 核心修复：针对手机端的动态视口高度和固定定位 */
+    html, body { 
       margin: 0; 
+      padding: 0;
       background: #000; 
       color: #fff; 
       font-family: Arial; 
       overflow: hidden; 
-      height: 100vh; /* 严格限制为屏幕高度 */
-      width: 100vw;
+      width: 100%;
+      height: 100%; /* 兼容老浏览器 */
+      height: 100dvh; /* 魔法属性：完美避开手机浏览器上下导航栏的遮挡 */
+      position: fixed; /* 死死钉在可视区域 */
+      top: 0;
+      left: 0;
       display: flex; 
       flex-direction: column; 
     }
     
     /* 顶部：共享媒体播放区 */
     #media-section { 
-      height: 35vh; /* 稍微缩小一点，给下面摄像头留点空间 */
-      flex-shrink: 0; /* 核心修复：绝对不被压缩 */
+      height: 30vh; /* 手机端稍微留出一点空间给摄像头 */
+      min-height: 180px; /* 保证播放器最小高度可见 */
+      flex-shrink: 0; 
       background: #1a1a1a; 
       display: flex; 
       flex-direction: column; 
@@ -34,15 +41,15 @@
     .yt-controls { display: flex; gap: 10px; width: 100%; max-width: 800px; margin-bottom: 10px; height: 40px; flex-shrink: 0; }
     .yt-controls input { flex: 1; padding: 0 10px; border-radius: 6px; border: none; font-size: 14px; background: #333; color: white; outline: none; }
     .yt-controls input::placeholder { color: #888; }
-    .yt-controls button { background: #ff0000; padding: 0 20px; border-radius: 6px; color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+    .yt-controls button { background: #ff0000; padding: 0 15px; border-radius: 6px; color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; white-space: nowrap; font-size: 14px; }
     .yt-controls button:hover { background: #cc0000; }
     #player-wrapper { width: 100%; max-width: 800px; flex: 1; background: #000; border-radius: 8px; overflow: hidden; position: relative; }
-    #player-placeholder { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; pointer-events:none; }
+    #player-placeholder { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; pointer-events:none; font-size: 14px;}
 
     /* 中部：视频通话区 */
     #camera-section { 
       flex: 1; 
-      min-height: 0; /* 核心修复：防止内部视频把 Flexbox 撑爆溢出屏幕 */
+      min-height: 0; 
       display:flex; 
       flex-direction: column; 
       position: relative; 
@@ -50,23 +57,25 @@
     @media (min-width: 600px) { #camera-section { flex-direction: row; } }
     .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #222; }
     video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
-    #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 15px 25px; border-radius: 10px; text-align: center; font-size: 16px; font-weight: bold; }
+    #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: bold; }
     
     /* 底部：控制台 */
     #bottom-bar { 
       height: 70px; 
-      flex-shrink: 0; /* 核心修复：保证底栏高度绝对锁定，永远显示 */
+      flex-shrink: 0; 
       background: rgba(0,0,0,0.9); 
       display: flex; 
       align-items: center; 
       justify-content: center; 
-      gap: 20px; 
+      gap: 15px; /* 手机端按钮间距稍微缩小 */
       z-index: 100; 
       border-top: 1px solid #333; 
+      padding-bottom: env(safe-area-inset-bottom); /* 适配 iPhone 底部小白条 */
+      box-sizing: content-box;
     }
-    .btn { padding:12px 24px; font-size:15px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; transition: 0.2s; }
+    .btn { padding:12px 20px; font-size:15px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; transition: 0.2s; }
     .btn:hover { opacity: 0.8; }
-    .next-btn { background:#ff9800; width: 130px; }
+    .next-btn { background:#ff9800; width: 120px; }
     .back-btn { background:#444; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -77,8 +86,8 @@
 
   <div id="media-section">
     <div class="yt-controls">
-      <input type="text" id="yt-url" placeholder="粘贴 YouTube 音乐或视频链接..." />
-      <button onclick="shareVideo()">全屏同步播放</button>
+      <input type="text" id="yt-url" placeholder="粘贴 YouTube 链接..." />
+      <button onclick="shareVideo()">全屏同步</button>
     </div>
     <div id="player-wrapper">
       <div id="player-placeholder">等待播放...</div>
