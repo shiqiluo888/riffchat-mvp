@@ -3,62 +3,80 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
-  <title>RiffChat - 多语言共享视听</title>
+  <title>RiffChat 房间 - 共享视听</title>
   <style>
+    /* 核心修复：针对手机端的动态视口高度和固定定位 */
     html, body { 
-      margin: 0; padding: 0; background: #000; color: #fff; font-family: Arial; 
-      overflow: hidden; width: 100%; height: 100dvh; position: fixed; 
-      display: flex; flex-direction: column; 
+      margin: 0; 
+      padding: 0;
+      background: #000; 
+      color: #fff; 
+      font-family: Arial; 
+      overflow: hidden; 
+      width: 100%;
+      height: 100%; /* 兼容老浏览器 */
+      height: 100dvh; /* 魔法属性：完美避开手机浏览器上下导航栏的遮挡 */
+      position: fixed; /* 死死钉在可视区域 */
+      top: 0;
+      left: 0;
+      display: flex; 
+      flex-direction: column; 
     }
     
-    /* 顶部栏：包含语言选择和播放控制 */
-    #top-header {
-      background: #1a1a1a; padding: 10px; border-bottom: 2px solid #333; z-index: 20;
-      display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;
+    /* 顶部：共享媒体播放区 */
+    #media-section { 
+      height: 30vh; /* 手机端稍微留出一点空间给摄像头 */
+      min-height: 180px; /* 保证播放器最小高度可见 */
+      flex-shrink: 0; 
+      background: #1a1a1a; 
+      display: flex; 
+      flex-direction: column; 
+      align-items: center; 
+      justify-content: center; 
+      padding: 10px; 
+      box-sizing: border-box;
+      border-bottom: 2px solid #333; 
+      z-index: 10; 
     }
+    .yt-controls { display: flex; gap: 10px; width: 100%; max-width: 800px; margin-bottom: 10px; height: 40px; flex-shrink: 0; }
+    .yt-controls input { flex: 1; padding: 0 10px; border-radius: 6px; border: none; font-size: 14px; background: #333; color: white; outline: none; }
+    .yt-controls input::placeholder { color: #888; }
+    .yt-controls button { background: #ff0000; padding: 0 15px; border-radius: 6px; color: white; font-weight: bold; border: none; cursor: pointer; transition: 0.2s; white-space: nowrap; font-size: 14px; }
+    .yt-controls button:hover { background: #cc0000; }
+    #player-wrapper { width: 100%; max-width: 800px; flex: 1; background: #000; border-radius: 8px; overflow: hidden; position: relative; }
+    #player-placeholder { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; pointer-events:none; font-size: 14px;}
+
+    /* 中部：视频通话区 */
+    #camera-section { 
+      flex: 1; 
+      min-height: 0; 
+      display:flex; 
+      flex-direction: column; 
+      position: relative; 
+    }
+    @media (min-width: 600px) { #camera-section { flex-direction: row; } }
+    .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #222; }
+    video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
+    #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: bold; }
     
-    /* 游戏风格语言切换器 */
-    .lang-selector { position: absolute; top: 10px; right: 10px; }
-    #lang-select { background: #444; color: white; border: 1px solid #ff9800; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; }
-
-    .yt-controls { display: flex; gap: 8px; width: 100%; max-width: 800px; height: 36px; }
-    .yt-controls input { flex: 1; padding: 0 10px; border-radius: 6px; border: none; font-size: 13px; background: #333; color: white; outline: none; }
-    .yt-controls button { background: #ff0000; padding: 0 12px; border-radius: 6px; color: white; font-weight: bold; border: none; cursor: pointer; font-size: 13px; }
-
-    #player-wrapper { width: 100%; max-width: 800px; height: 140px; background: #000; border-radius: 8px; overflow: hidden; position: relative; flex-shrink: 0; }
-
-    /* 主内容区 */
-    #main-content { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
-    @media (min-width: 600px) { #main-content { flex-direction: row; } }
-
-    /* 视频区 */
-    #video-container { flex: 1.5; display: flex; flex-direction: column; background: #000; }
-    .video-box { flex: 1; position: relative; border: 1px solid #222; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    video { width: 100%; height: 100%; object-fit: cover; }
-    #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 8px; font-size: 12px; text-align: center; color: #ff9800; }
-
-    /* 聊天区 */
-    #chat-section { flex: 1; display: flex; flex-direction: column; background: #111; border-left: 1px solid #333; max-height: 35vh; }
-    @media (min-width: 600px) { #chat-section { max-height: none; } }
-
-    #chat-messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
-    .msg { background: #222; padding: 8px 12px; border-radius: 12px; max-width: 85%; align-self: flex-start; line-height: 1.4; }
-    .msg.mine { background: #007bff; align-self: flex-end; }
-    .translation-label { font-size: 10px; color: #ff9800; margin-top: 4px; display: block; border-top: 1px solid #444; padding-top: 2px; }
-
-    #chat-input-area { padding: 10px; background: #1a1a1a; display: flex; gap: 8px; border-top: 1px solid #333; }
-    #chat-input { flex: 1; background: #333; border: none; padding: 8px 15px; border-radius: 20px; color: white; outline: none; }
-    #send-btn { background: #28a745; border: none; padding: 0 15px; border-radius: 20px; color: white; cursor: pointer; font-weight: bold; }
-
-    /* 底部按钮 */
+    /* 底部：控制台 */
     #bottom-bar { 
-      height: 65px; flex-shrink: 0; background: #000; display: flex; 
-      align-items: center; justify-content: center; gap: 15px; border-top: 1px solid #333;
-      padding-bottom: env(safe-area-inset-bottom);
+      height: 70px; 
+      flex-shrink: 0; 
+      background: rgba(0,0,0,0.9); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      gap: 15px; /* 手机端按钮间距稍微缩小 */
+      z-index: 100; 
+      border-top: 1px solid #333; 
+      padding-bottom: env(safe-area-inset-bottom); /* 适配 iPhone 底部小白条 */
+      box-sizing: content-box;
     }
-    .btn { padding: 12px 24px; font-size: 14px; border: none; border-radius: 8px; font-weight: bold; color: white; cursor: pointer; }
-    .next-btn { background: #ff9800; }
-    .back-btn { background: #444; }
+    .btn { padding:12px 20px; font-size:15px; border:none; border-radius:8px; font-weight: bold; color: white; cursor: pointer; transition: 0.2s; }
+    .btn:hover { opacity: 0.8; }
+    .next-btn { background:#ff9800; width: 120px; }
+    .back-btn { background:#444; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -66,183 +84,241 @@
 </head>
 <body>
 
-  <div id="top-header">
-    <div class="lang-selector">
-      <select id="lang-select" onchange="changeLanguage()">
-        <option value="zh">简体中文</option>
-        <option value="en">English</option>
-        <option value="jp">日本語</option>
-        <option value="kr">한국어</option>
-        <option value="ru">Русский</option>
-        <option value="fr">Français</option>
-        <option value="es">Español</option>
-        <option value="de">Deutsch</option>
-      </select>
-    </div>
-    
+  <div id="media-section">
     <div class="yt-controls">
-      <input type="text" id="yt-url" placeholder="YouTube Link..." />
-      <button onclick="shareVideo()" id="ui-share">同步播放</button>
+      <input type="text" id="yt-url" placeholder="粘贴 YouTube 链接..." />
+      <button onclick="shareVideo()">全屏同步</button>
     </div>
-    
     <div id="player-wrapper">
+      <div id="player-placeholder">等待播放...</div>
       <div id="ytplayer"></div>
     </div>
   </div>
 
-  <div id="main-content">
-    <div id="video-container">
-      <div class="video-box">
-        <div id="remote-status">Connecting...</div>
-        <video id="remote" autoplay playsinline webkit-playsinline></video>
-      </div>
-      <div class="video-box" style="flex: 0.3;">
-        <video id="local" autoplay playsinline webkit-playsinline muted></video>
-      </div>
+  <div id="camera-section">
+    <div class="video-box">
+      <div id="remote-status">正在连接队友摄像头...</div>
+      <video id="remote" autoplay playsinline webkit-playsinline></video>
     </div>
-
-    <div id="chat-section">
-      <div id="chat-messages"></div>
-      <div id="chat-input-area">
-        <input type="text" id="chat-input" placeholder="Aa..." onkeydown="if(event.keyCode==13) sendMessage()"/>
-        <button id="send-btn" onclick="sendMessage()">OK</button>
-      </div>
+    <div class="video-box">
+      <video id="local" autoplay playsinline webkit-playsinline muted></video>
     </div>
   </div>
 
   <div id="bottom-bar">
-    <button class="btn back-btn" onclick="goHome()" id="ui-exit">退出</button>
-    <button class="btn next-btn" onclick="goNext()" id="ui-next">下一个 ⏭</button>
+    <button class="btn back-btn" onclick="goHome()">退出大厅</button>
+    <button class="btn next-btn" onclick="goNext()">下一个 ⏭</button>
   </div>
 
   <script>
-    // --- 1. 多语言配置表 ---
-    const i18n = {
-      zh: { next: "下一个 ⏭", exit: "退出", share: "同步播放", status: "正在连接对方...", placeholder: "输入聊天...", send: "发送" },
-      en: { next: "Next ⏭", exit: "Exit", share: "Sync Play", status: "Connecting...", placeholder: "Type here...", send: "Send" },
-      jp: { next: "次へ ⏭", exit: "終了", share: "同期再生", status: "接続中...", placeholder: "入力...", send: "送信" },
-      kr: { next: "다음 ⏭", exit: "나가기", share: "동기화", status: "연결 중...", placeholder: "채팅...", send: "전송" },
-      ru: { next: "Далее ⏭", exit: "Выход", share: "Синхронизация", status: "Подключение...", placeholder: "Сообщение...", send: "ОК" }
-    };
-
-    function changeLanguage() {
-      const lang = document.getElementById('lang-select').value;
-      const dict = i18n[lang] || i18n.en;
-      
-      // 更新界面文本
-      document.getElementById('ui-next').innerText = dict.next;
-      document.getElementById('ui-exit').innerText = dict.exit;
-      document.getElementById('ui-share').innerText = dict.share;
-      document.getElementById('chat-input').placeholder = dict.placeholder;
-      document.getElementById('send-btn').innerText = dict.send;
-      if(document.getElementById('remote-status').style.display !== 'none') {
-          document.getElementById('remote-status').innerText = dict.status;
-      }
-    }
-
-    // --- 2. 模拟翻译接口 (接入16国语言逻辑) ---
-    async function translateText(text, targetLang) {
-      // 此处预留 Google Translate 接口
-      // 演示逻辑：如果目标是英文且内容含中文，加个前缀
-      const langNames = { zh: "中文", en: "English", jp: "日本語", kr: "한국어" };
-      return `[To ${langNames[targetLang] || targetLang}]: ${text} (AI Translated)`;
-    }
-
-    // --- 3. 基础逻辑封装 (Firebase/YouTube/PeerJS) ---
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
-    let localStream = null, peer = null, myId = null;
+    let localStream = null;
+    let peer = null;
+    let connectTimeout = null;
 
+    // --- 1. Firebase 初始化与占位 ---
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
       projectId: "riffchat-96b69",
+      storageBucket: "riffchat-96b69.firebasestorage.app",
+      messagingSenderId: "597645980095",
+      appId: "1:597645980095:web:607eefd061c062fed7710a",
       databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"
     };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    async function sendMessage() {
-      const input = document.getElementById('chat-input');
-      if (!input.value.trim()) return;
-      db.ref(`rooms/${roomId}/chat`).push({ sender: myId, text: input.value, ts: Date.now() });
-      input.value = '';
+    const myPresenceRef = db.ref('presence').push();
+    db.ref('.info/connected').on('value', (snap) => {
+      if (snap.val() === true) {
+        myPresenceRef.set(true);
+        myPresenceRef.onDisconnect().remove();
+      }
+    });
+
+    // --- 2. YouTube 同步播放器逻辑 ---
+    let ytPlayer = null;
+    let isYtReady = false;
+    let isSyncing = false; 
+
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    function onYouTubeIframeAPIReady() {
+      isYtReady = true;
+      ytPlayer = new YT.Player('ytplayer', {
+        height: '100%',
+        width: '100%',
+        videoId: '', 
+        playerVars: { 'autoplay': 1, 'controls': 1, 'rel': 0 },
+        events: { 'onStateChange': onPlayerStateChange }
+      });
+      listenToMediaSync(); 
     }
 
-    function listenChat() {
-      db.ref(`rooms/${roomId}/chat`).on('child_added', async (snap) => {
-        const data = snap.val();
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `msg ${data.sender === myId ? 'mine' : ''}`;
-        msgDiv.innerText = data.text;
+    function extractVideoID(url) {
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
 
-        if (data.sender !== myId) {
-          const currentLang = document.getElementById('lang-select').value;
-          const translated = await translateText(data.text, currentLang);
-          const transSpan = document.createElement('span');
-          transSpan.className = 'translation-label';
-          transSpan.innerText = translated;
-          msgDiv.appendChild(transSpan);
+    function shareVideo() {
+      if (!isYtReady || !peer) return alert("播放器或网络还在初始化，请稍等...");
+      const url = document.getElementById('yt-url').value;
+      const vidId = extractVideoID(url);
+      if (!vidId) return alert("解析失败，请确保粘贴的是正确的 YouTube 链接！");
+
+      document.getElementById('player-placeholder').style.display = 'none';
+      document.getElementById('yt-url').value = ''; 
+      
+      db.ref(`rooms/${roomId}/media`).set({
+        videoId: vidId,
+        state: 'playing',
+        time: 0,
+        sender: peer.id 
+      });
+    }
+
+    function onPlayerStateChange(event) {
+      if (isSyncing || !peer) return; 
+
+      let stateStr = null;
+      if (event.data == YT.PlayerState.PLAYING) stateStr = 'playing';
+      else if (event.data == YT.PlayerState.PAUSED) stateStr = 'paused';
+      
+      if (stateStr) {
+        let vidData = '';
+        try { vidData = ytPlayer.getVideoData().video_id; } catch(e){}
+        if (!vidData) return;
+
+        db.ref(`rooms/${roomId}/media`).set({
+          videoId: vidData,
+          state: stateStr,
+          time: ytPlayer.getCurrentTime(),
+          sender: peer.id
+        });
+      }
+    }
+
+    function listenToMediaSync() {
+      db.ref(`rooms/${roomId}/media`).on('value', (snap) => {
+        const data = snap.val();
+        if (!data || !ytPlayer || !peer) return;
+        
+        if (data.sender === peer.id) return; 
+
+        isSyncing = true; 
+        document.getElementById('player-placeholder').style.display = 'none';
+
+        let currentVid = '';
+        try { currentVid = ytPlayer.getVideoData().video_id; } catch(e){}
+
+        if (data.videoId && data.videoId !== currentVid) {
+          ytPlayer.loadVideoById(data.videoId, data.time);
+          if (data.state === 'paused') {
+            setTimeout(() => { ytPlayer.pauseVideo(); isSyncing = false; }, 800);
+            return;
+          }
+        } else {
+          const currentTime = ytPlayer.getCurrentTime() || 0;
+          if (Math.abs(currentTime - data.time) > 2) {
+            ytPlayer.seekTo(data.time, true);
+          }
+          if (data.state === 'playing') ytPlayer.playVideo();
+          else if (data.state === 'paused') ytPlayer.pauseVideo();
         }
 
-        const container = document.getElementById('chat-messages');
-        container.appendChild(msgDiv);
-        container.scrollTop = container.scrollHeight;
+        setTimeout(() => { isSyncing = false; }, 1000);
       });
     }
 
-    // YouTube / PeerJS 核心复用
-    let ytPlayer = null, isSyncing = false;
-    const tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
-    document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, null);
-    function onYouTubeIframeAPIReady() {
-      ytPlayer = new YT.Player('ytplayer', { height: '100%', width: '100%', videoId: '', events: { 'onStateChange': onPlayerStateChange } });
-      db.ref(`rooms/${roomId}/media`).on('value', snap => {
-        const d = snap.val(); if(!d || d.sender === myId || !ytPlayer) return;
-        isSyncing = true;
-        if(d.videoId !== ytPlayer.getVideoData().video_id) ytPlayer.loadVideoById(d.videoId, d.time);
-        if(Math.abs(ytPlayer.getCurrentTime() - d.time) > 2) ytPlayer.seekTo(d.time, true);
-        d.state === 'playing' ? ytPlayer.playVideo() : ytPlayer.pauseVideo();
-        setTimeout(()=> isSyncing = false, 1000);
-      });
-    }
-    function onPlayerStateChange(e) {
-      if(isSyncing || !myId) return;
-      const s = e.data == 1 ? 'playing' : (e.data == 2 ? 'paused' : null);
-      if(s) db.ref(`rooms/${roomId}/media`).set({ videoId: ytPlayer.getVideoData().video_id, state: s, time: ytPlayer.getCurrentTime(), sender: myId });
-    }
-    function shareVideo() {
-      const vidId = document.getElementById('yt-url').value.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/)?.[1];
-      if(vidId) db.ref(`rooms/${roomId}/media`).set({ videoId: vidId, state: 'playing', time: 0, sender: myId });
-    }
-
-    async function start() {
+    // --- 3. 视频通话核心 ---
+    async function startLocalVideo() {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
         document.getElementById('local').srcObject = localStream;
-        peer = new Peer();
-        peer.on('open', id => { 
-            myId = id; 
-            db.ref(`rooms/${roomId}/peers/${id}`).set({peerId: id}); 
-            listenChat(); 
-            changeLanguage(); // 初始化UI语言
+      } catch (err) {
+        alert("请开启摄像头和麦克风权限！否则无法进行视频聊天。");
+        goHome();
+      }
+    }
+
+    function showRemoteStream(stream) {
+      if (connectTimeout) clearTimeout(connectTimeout); 
+      const remoteVideo = document.getElementById('remote');
+      document.getElementById('remote-status').style.display = 'none';
+      if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
+      remoteVideo.pause();
+      remoteVideo.srcObject = stream;
+      const playPromise = remoteVideo.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          document.getElementById('remote-status').innerText = "由于浏览器限制，请点击屏幕开启画面和声音";
+          document.getElementById('remote-status').style.display = 'block';
         });
-        peer.on('call', c => { c.answer(localStream); c.on('stream', s => document.getElementById('remote').srcObject = s); document.getElementById('remote-status').style.display='none'; });
-        db.ref(`rooms/${roomId}/peers`).on('child_added', snap => {
-          const o = snap.val();
-          if(o.peerId !== myId && myId > o.peerId) {
-            const c = peer.call(o.peerId, localStream);
-            c.on('stream', s => document.getElementById('remote').srcObject = s);
-            document.getElementById('remote-status').style.display='none';
-          }
-        });
-      } catch(e) { alert("Camera Error"); }
+      }
+    }
+
+    document.addEventListener('click', () => {
+      const rv = document.getElementById('remote');
+      if (rv && rv.paused) {
+        rv.muted = false;
+        rv.play().catch(()=>{});
+        document.getElementById('remote-status').style.display = 'none';
+      }
+    }, { once: false });
+
+    function initPeer() {
+      if (!roomId) { alert("房间号不存在！"); return goHome(); }
+      peer = new Peer({ config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } });
+
+      peer.on('open', (id) => {
+        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id });
+        db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
+        
+        connectTimeout = setTimeout(() => {
+          const statusEl = document.getElementById('remote-status');
+          if (statusEl.style.display !== 'none') statusEl.innerText = "连接超时，请直接点击【下一个】⏭";
+        }, 12000);
+      });
+
+      peer.on('call', (call) => {
+        call.answer(localStream);
+        call.on('stream', showRemoteStream);
+      });
+
+      db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
+        const other = snap.val();
+        if (other.peerId !== peer.id && peer.id > other.peerId) {
+          setTimeout(() => {
+            const call = peer.call(other.peerId, localStream);
+            call.on('stream', showRemoteStream);
+          }, 1500); 
+        }
+      });
+
+      db.ref(`rooms/${roomId}/peers`).on('child_removed', () => {
+        document.getElementById('remote').srcObject = null;
+        document.getElementById('remote-status').innerText = "对方已离开，请点下一个 ⏭";
+        document.getElementById('remote-status').style.display = 'block';
+      });
+    }
+
+    // --- 4. 清理与跳转 ---
+    function cleanup() {
+      if (connectTimeout) clearTimeout(connectTimeout);
+      if (peer) { db.ref(`rooms/${roomId}/peers/${peer.id}`).remove(); peer.destroy(); }
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      if (myPresenceRef) myPresenceRef.remove();
     }
     function goNext() { cleanup(); window.location.replace("index.html?auto=true"); }
     function goHome() { cleanup(); window.location.replace("index.html"); }
-    function cleanup() { if(peer) peer.destroy(); if(localStream) localStream.getTracks().forEach(t=>t.stop()); }
 
-    start();
+    startLocalVideo().then(initPeer);
   </script>
 </body>
 </html>
