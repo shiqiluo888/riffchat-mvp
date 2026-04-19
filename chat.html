@@ -5,21 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <title>RiffChat 房间 - 多语言共享视听</title>
   <style>
-    /* --- 核心基础 UI (保留了你的手机端完美适配) --- */
+    /* --- 核心基础 UI --- */
     html, body { 
       margin: 0; padding: 0; background: #000; color: #fff; font-family: Arial; 
       overflow: hidden; width: 100%; height: 100%; height: 100dvh; 
       position: fixed; top: 0; left: 0; display: flex; flex-direction: column; 
     }
     
-    /* 顶部：共享媒体播放区 + 语言切换 */
+    /* 顶部：共享媒体播放区 */
     #media-section { 
       height: 30vh; min-height: 180px; flex-shrink: 0; background: #1a1a1a; 
       display: flex; flex-direction: column; align-items: center; justify-content: center; 
       padding: 10px; box-sizing: border-box; border-bottom: 2px solid #333; z-index: 10; position: relative;
     }
 
-    /* 新增：游戏风格语言切换器 */
     .lang-selector { position: absolute; top: 10px; right: 10px; z-index: 20; }
     #lang-select { background: #444; color: white; border: 1px solid #ff9800; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; outline: none; }
 
@@ -29,26 +28,53 @@
     #player-wrapper { width: 100%; max-width: 800px; flex: 1; background: #000; border-radius: 8px; overflow: hidden; position: relative; }
     #player-placeholder { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; pointer-events:none; font-size: 14px;}
 
-    /* 中部包裹区：视频 + 聊天 */
-    #main-content { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
-    @media (min-width: 600px) { #main-content { flex-direction: row; } }
+    /* 中部包裹区：视频 + 悬浮聊天 */
+    #main-content { 
+      flex: 1; min-height: 0; display: flex; flex-direction: row; position: relative; overflow: hidden; 
+    }
 
-    /* 视频通话区 */
-    #camera-section { flex: 1.2; display:flex; flex-direction: column; position: relative; background: #000; }
+    /* 视频通话区 (现在重新占满全部空间) */
+    #camera-section { 
+      flex: 1; display:flex; flex-direction: column; position: relative; background: #000; 
+    }
+    @media (min-width: 600px) { #camera-section { flex-direction: row; } } /* PC端左右，手机端上下 */
+    
     .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #222; }
     video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
     #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: bold; }
     
-    /* 新增：聊天与翻译区 */
-    #chat-section { flex: 1; display: flex; flex-direction: column; background: #111; border-left: 1px solid #333; max-height: 35vh; }
-    @media (min-width: 600px) { #chat-section { max-height: none; } }
-    #chat-messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
-    .msg { background: #222; padding: 8px 12px; border-radius: 12px; max-width: 85%; align-self: flex-start; line-height: 1.4; word-break: break-word;}
-    .msg.mine { background: #007bff; align-self: flex-end; }
-    .translation-label { font-size: 11px; color: #ff9800; margin-top: 4px; display: block; border-top: 1px dashed #555; padding-top: 4px; }
-    #chat-input-area { padding: 8px; background: #1a1a1a; display: flex; gap: 8px; border-top: 1px solid #333; }
-    #chat-input { flex: 1; background: #333; border: none; padding: 8px 12px; border-radius: 15px; color: white; outline: none; font-size: 13px;}
-    #send-btn { background: #28a745; border: none; padding: 0 15px; border-radius: 15px; color: white; cursor: pointer; font-weight: bold; font-size: 13px;}
+    /* 聊天开关悬浮按钮 */
+    #chat-toggle-btn {
+      position: absolute; bottom: 15px; right: 15px; z-index: 40;
+      background: rgba(100, 100, 100, 0.8); color: white; border: 1px solid rgba(255,255,255,0.2);
+      padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer;
+      backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: all 0.3s ease; font-size: 14px;
+    }
+    #chat-toggle-btn.has-new { background: #dc3545; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+    /* 半透明悬浮聊天区 */
+    #chat-overlay { 
+      position: absolute; top: 0; right: -100%; /* 默认隐藏在屏幕右侧外 */
+      width: 100%; max-width: 380px; height: 100%; 
+      background: rgba(17, 17, 17, 0.65); /* 半透明黑背景 */
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); /* 核心：毛玻璃效果 */
+      display: flex; flex-direction: column; z-index: 50; 
+      transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      border-left: 1px solid rgba(255,255,255,0.1);
+    }
+    #chat-overlay.show { right: 0; } /* 展开状态 */
+
+    #chat-messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { background: rgba(50, 50, 50, 0.8); padding: 10px 14px; border-radius: 12px; max-width: 85%; align-self: flex-start; line-height: 1.4; word-break: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
+    .msg.mine { background: rgba(0, 123, 255, 0.85); align-self: flex-end; }
+    .translation-label { font-size: 11px; color: #ffcc00; margin-top: 6px; display: block; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 6px; }
+    
+    #chat-input-area { padding: 12px; background: rgba(0, 0, 0, 0.5); display: flex; gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+    #chat-input { flex: 1; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 20px; color: white; outline: none; font-size: 14px;}
+    #chat-input::placeholder { color: #ccc; }
+    #send-btn { background: #28a745; border: none; padding: 0 18px; border-radius: 20px; color: white; cursor: pointer; font-weight: bold; font-size: 14px;}
 
     /* 底部：控制台 (保留原样) */
     #bottom-bar { 
@@ -96,12 +122,14 @@
         <div id="remote-status">正在连接队友摄像头...</div>
         <video id="remote" autoplay playsinline webkit-playsinline></video>
       </div>
-      <div class="video-box" style="flex: 0.4;">
+      <div class="video-box">
         <video id="local" autoplay playsinline webkit-playsinline muted></video>
       </div>
+      
+      <button id="chat-toggle-btn" onclick="toggleChat()">💬 展开聊天</button>
     </div>
 
-    <div id="chat-section">
+    <div id="chat-overlay">
       <div id="chat-messages"></div>
       <div id="chat-input-area">
         <input type="text" id="chat-input" placeholder="输入聊天内容..." onkeydown="if(event.keyCode==13) sendMessage()"/>
@@ -116,15 +144,37 @@
   </div>
 
   <script>
-    // --- 0. 多语言字典 (i18n) ---
+    // --- 0. UI 控制逻辑 (抽屉 & 多语言) ---
+    let unreadCount = 0;
+    
+    function toggleChat() {
+      const chatOverlay = document.getElementById('chat-overlay');
+      const toggleBtn = document.getElementById('chat-toggle-btn');
+      
+      chatOverlay.classList.toggle('show');
+      
+      if (chatOverlay.classList.contains('show')) {
+        // 打开时
+        toggleBtn.innerText = '💬 收起聊天';
+        toggleBtn.classList.remove('has-new');
+        unreadCount = 0;
+        // 自动滚动到底部
+        const container = document.getElementById('chat-messages');
+        container.scrollTop = container.scrollHeight;
+      } else {
+        // 收起时
+        toggleBtn.innerText = '💬 展开聊天';
+      }
+    }
+
     const i18n = {
-      zh: { next: "下一个 ⏭", exit: "退出大厅", share: "全屏同步", status: "正在连接队友摄像头...", placeholder: "输入聊天内容...", send: "发送", waitPlay: "等待播放..." },
-      en: { next: "Next ⏭", exit: "Exit Room", share: "Sync Play", status: "Connecting to peer...", placeholder: "Type a message...", send: "Send", waitPlay: "Waiting for video..." },
-      jp: { next: "次へ ⏭", exit: "退出する", share: "同期再生", status: "接続中...", placeholder: "メッセージを入力...", send: "送信", waitPlay: "再生待ち..." },
-      kr: { next: "다음 ⏭", exit: "나가기", share: "동기화", status: "연결 중...", placeholder: "메시지 입력...", send: "전송", waitPlay: "재생 대기 중..." },
-      ru: { next: "Далее ⏭", exit: "Выйти", share: "Синхронизация", status: "Подключение...", placeholder: "Введите сообщение...", send: "Отправить", waitPlay: "Ожидание видео..." },
-      fr: { next: "Suivant ⏭", exit: "Quitter", share: "Synchroniser", status: "Connexion en cours...", placeholder: "Tapez un message...", send: "Envoyer", waitPlay: "En attente..." },
-      es: { next: "Siguiente ⏭", exit: "Salir", share: "Sincronizar", status: "Conectando...", placeholder: "Escribe un mensaje...", send: "Enviar", waitPlay: "Esperando video..." }
+      zh: { next: "下一个 ⏭", exit: "退出大厅", share: "全屏同步", status: "正在连接队友摄像头...", placeholder: "输入聊天内容...", send: "发送" },
+      en: { next: "Next ⏭", exit: "Exit Room", share: "Sync Play", status: "Connecting to peer...", placeholder: "Type a message...", send: "Send" },
+      jp: { next: "次へ ⏭", exit: "退出する", share: "同期再生", status: "接続中...", placeholder: "メッセージを入力...", send: "送信" },
+      kr: { next: "다음 ⏭", exit: "나가기", share: "동기화", status: "연결 중...", placeholder: "메시지 입력...", send: "전송" },
+      ru: { next: "Далее ⏭", exit: "Выйти", share: "Синхронизация", status: "Подключение...", placeholder: "Введите сообщение...", send: "Отправить" },
+      fr: { next: "Suivant ⏭", exit: "Quitter", share: "Synchroniser", status: "Connexion en cours...", placeholder: "Tapez un message...", send: "Envoyer" },
+      es: { next: "Siguiente ⏭", exit: "Salir", share: "Sincronizar", status: "Conectando...", placeholder: "Escribe un mensaje...", send: "Enviar" }
     };
 
     function changeLanguage() {
@@ -143,7 +193,6 @@
       }
     }
 
-    // 模拟翻译逻辑
     async function translateText(text, targetLang) {
       const langNames = { zh: "中文", en: "English", jp: "日本語", kr: "한국어", ru: "Русский", fr: "Français", es: "Español" };
       return `[翻译至 ${langNames[targetLang]}]: ${text} (API占位)`;
@@ -178,7 +227,7 @@
       }
     });
 
-    // --- 1.5 聊天发送与接收 ---
+    // --- 1.5 聊天发送与接收 (带未读红点逻辑) ---
     function sendMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
@@ -194,7 +243,7 @@
         msgDiv.className = `msg ${data.sender === myId ? 'mine' : ''}`;
         msgDiv.innerText = data.text;
 
-        // 如果是对方发的消息，调用翻译
+        // 如果是对方发的消息
         if (data.sender !== myId) {
           const currentLang = document.getElementById('lang-select').value;
           const translated = await translateText(data.text, currentLang);
@@ -202,6 +251,15 @@
           transSpan.className = 'translation-label';
           transSpan.innerText = translated;
           msgDiv.appendChild(transSpan);
+
+          // 新消息红点逻辑：如果聊天框没打开，则增加未读并让按钮变红
+          const chatOverlay = document.getElementById('chat-overlay');
+          if (!chatOverlay.classList.contains('show')) {
+            unreadCount++;
+            const toggleBtn = document.getElementById('chat-toggle-btn');
+            toggleBtn.innerText = `💬 新消息 (${unreadCount})`;
+            toggleBtn.classList.add('has-new');
+          }
         }
 
         const container = document.getElementById('chat-messages');
@@ -210,7 +268,7 @@
       });
     }
 
-    // --- 2. YouTube 同步播放器逻辑 ---
+    // --- 2. YouTube 同步播放器逻辑 (保持不变) ---
     let ytPlayer = null;
     let isYtReady = false;
     let isSyncing = false; 
@@ -281,7 +339,7 @@
       });
     }
 
-    // --- 3. 视频通话核心 ---
+    // --- 3. 视频通话核心 (保持不变) ---
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
@@ -322,7 +380,7 @@
         db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id });
         db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
         
-        listenChat(); // 成功连接后开启聊天监听
+        listenChat(); 
         
         connectTimeout = setTimeout(() => {
           const statusEl = document.getElementById('remote-status');
@@ -362,7 +420,6 @@
     function goNext() { cleanup(); window.location.replace("index.html?auto=true"); }
     function goHome() { cleanup(); window.location.replace("index.html"); }
 
-    // 页面加载完成后立刻应用当前选择的语言
     changeLanguage();
     startLocalVideo().then(initPeer);
   </script>
