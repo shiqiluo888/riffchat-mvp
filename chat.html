@@ -12,7 +12,6 @@
       position: fixed; top: 0; left: 0; display: flex; flex-direction: column; 
     }
     
-    /* 顶部：共享媒体播放区 */
     #media-section { 
       height: 30vh; min-height: 180px; flex-shrink: 0; background: #1a1a1a; 
       display: flex; flex-direction: column; align-items: center; justify-content: center; 
@@ -28,24 +27,18 @@
     #player-wrapper { width: 100%; max-width: 800px; flex: 1; background: #000; border-radius: 8px; overflow: hidden; position: relative; }
     #player-placeholder { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#555; pointer-events:none; font-size: 14px;}
 
-    /* 中部包裹区：视频 + 悬浮聊天 */
-    #main-content { 
-      flex: 1; min-height: 0; display: flex; flex-direction: row; position: relative; overflow: hidden; 
-    }
+    #main-content { flex: 1; min-height: 0; display: flex; flex-direction: row; position: relative; overflow: hidden; }
 
-    /* 视频通话区 (现在重新占满全部空间) */
-    #camera-section { 
-      flex: 1; display:flex; flex-direction: column; position: relative; background: #000; 
-    }
-    @media (min-width: 600px) { #camera-section { flex-direction: row; } } /* PC端左右，手机端上下 */
+    #camera-section { flex: 1; display:flex; flex-direction: column; position: relative; background: #000; }
+    @media (min-width: 600px) { #camera-section { flex-direction: row; } }
     
     .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #222; }
     video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
     #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: bold; }
     
-    /* 聊天开关悬浮按钮 */
+    /* 聊天开关悬浮按钮 - 修复了 z-index 确保永远在最上层 */
     #chat-toggle-btn {
-      position: absolute; bottom: 15px; right: 15px; z-index: 40;
+      position: absolute; bottom: 15px; right: 15px; z-index: 60; /* 原来是40，现在设为60高于聊天的50 */
       background: rgba(100, 100, 100, 0.8); color: white; border: 1px solid rgba(255,255,255,0.2);
       padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer;
       backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
@@ -56,17 +49,26 @@
 
     /* 半透明悬浮聊天区 */
     #chat-overlay { 
-      position: absolute; top: 0; right: -100%; /* 默认隐藏在屏幕右侧外 */
+      position: absolute; top: 0; right: -100%; 
       width: 100%; max-width: 380px; height: 100%; 
-      background: rgba(17, 17, 17, 0.65); /* 半透明黑背景 */
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); /* 核心：毛玻璃效果 */
+      background: rgba(17, 17, 17, 0.65); 
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); 
       display: flex; flex-direction: column; z-index: 50; 
       transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
       border-left: 1px solid rgba(255,255,255,0.1);
     }
-    #chat-overlay.show { right: 0; } /* 展开状态 */
+    #chat-overlay.show { right: 0; }
 
-    #chat-messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 14px; display: flex; flex-direction: column; gap: 10px; }
+    /* 新增：聊天框顶部栏与关闭按钮 */
+    #chat-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.4); font-size: 15px; font-weight: bold;
+    }
+    #close-chat-btn { background: none; border: none; color: #aaa; font-size: 24px; cursor: pointer; line-height: 1; padding: 0; transition: 0.2s;}
+    #close-chat-btn:hover { color: white; }
+
+    #chat-messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 14px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 70px; /* 留出底部悬浮按钮的空间 */ }
     .msg { background: rgba(50, 50, 50, 0.8); padding: 10px 14px; border-radius: 12px; max-width: 85%; align-self: flex-start; line-height: 1.4; word-break: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
     .msg.mine { background: rgba(0, 123, 255, 0.85); align-self: flex-end; }
     .translation-label { font-size: 11px; color: #ffcc00; margin-top: 6px; display: block; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 6px; }
@@ -76,7 +78,6 @@
     #chat-input::placeholder { color: #ccc; }
     #send-btn { background: #28a745; border: none; padding: 0 18px; border-radius: 20px; color: white; cursor: pointer; font-weight: bold; font-size: 14px;}
 
-    /* 底部：控制台 (保留原样) */
     #bottom-bar { 
       height: 70px; flex-shrink: 0; background: rgba(0,0,0,0.9); display: flex; 
       align-items: center; justify-content: center; gap: 15px; z-index: 100; 
@@ -99,13 +100,8 @@
         <option value="zh">简体中文</option>
         <option value="en">English</option>
         <option value="jp">日本語</option>
-        <option value="kr">한국어</option>
-        <option value="ru">Русский</option>
-        <option value="fr">Français</option>
-        <option value="es">Español</option>
       </select>
     </div>
-
     <div class="yt-controls">
       <input type="text" id="yt-url" placeholder="粘贴 YouTube 链接..." />
       <button onclick="shareVideo()" id="ui-share">全屏同步</button>
@@ -130,6 +126,10 @@
     </div>
 
     <div id="chat-overlay">
+      <div id="chat-header">
+        <span id="ui-chat-title">房间聊天</span>
+        <button id="close-chat-btn" onclick="toggleChat()">×</button>
+      </div>
       <div id="chat-messages"></div>
       <div id="chat-input-area">
         <input type="text" id="chat-input" placeholder="输入聊天内容..." onkeydown="if(event.keyCode==13) sendMessage()"/>
@@ -144,7 +144,7 @@
   </div>
 
   <script>
-    // --- 0. UI 控制逻辑 (抽屉 & 多语言) ---
+    // --- UI 逻辑 ---
     let unreadCount = 0;
     
     function toggleChat() {
@@ -154,51 +154,40 @@
       chatOverlay.classList.toggle('show');
       
       if (chatOverlay.classList.contains('show')) {
-        // 打开时
         toggleBtn.innerText = '💬 收起聊天';
         toggleBtn.classList.remove('has-new');
         unreadCount = 0;
-        // 自动滚动到底部
         const container = document.getElementById('chat-messages');
         container.scrollTop = container.scrollHeight;
       } else {
-        // 收起时
         toggleBtn.innerText = '💬 展开聊天';
       }
     }
 
     const i18n = {
-      zh: { next: "下一个 ⏭", exit: "退出大厅", share: "全屏同步", status: "正在连接队友摄像头...", placeholder: "输入聊天内容...", send: "发送" },
-      en: { next: "Next ⏭", exit: "Exit Room", share: "Sync Play", status: "Connecting to peer...", placeholder: "Type a message...", send: "Send" },
-      jp: { next: "次へ ⏭", exit: "退出する", share: "同期再生", status: "接続中...", placeholder: "メッセージを入力...", send: "送信" },
-      kr: { next: "다음 ⏭", exit: "나가기", share: "동기화", status: "연결 중...", placeholder: "메시지 입력...", send: "전송" },
-      ru: { next: "Далее ⏭", exit: "Выйти", share: "Синхронизация", status: "Подключение...", placeholder: "Введите сообщение...", send: "Отправить" },
-      fr: { next: "Suivant ⏭", exit: "Quitter", share: "Synchroniser", status: "Connexion en cours...", placeholder: "Tapez un message...", send: "Envoyer" },
-      es: { next: "Siguiente ⏭", exit: "Salir", share: "Sincronizar", status: "Conectando...", placeholder: "Escribe un mensaje...", send: "Enviar" }
+      zh: { next: "下一个 ⏭", exit: "退出大厅", share: "全屏同步", status: "正在连接队友...", chat: "房间聊天", placeholder: "输入内容...", send: "发送" },
+      en: { next: "Next ⏭", exit: "Exit", share: "Sync", status: "Connecting...", chat: "Room Chat", placeholder: "Type...", send: "Send" },
+      jp: { next: "次へ ⏭", exit: "退出", share: "同期", status: "接続中...", chat: "チャット", placeholder: "入力...", send: "送信" }
     };
 
     function changeLanguage() {
       const lang = document.getElementById('lang-select').value;
       const dict = i18n[lang] || i18n.zh;
-      
       document.getElementById('ui-next').innerText = dict.next;
       document.getElementById('ui-exit').innerText = dict.exit;
       document.getElementById('ui-share').innerText = dict.share;
+      document.getElementById('ui-chat-title').innerText = dict.chat;
       document.getElementById('chat-input').placeholder = dict.placeholder;
       document.getElementById('send-btn').innerText = dict.send;
-      
       const statusEl = document.getElementById('remote-status');
-      if(statusEl.innerText.includes("连") || statusEl.innerText.includes("Connect")) {
-          statusEl.innerText = dict.status;
-      }
+      if(statusEl.innerText.includes("连") || statusEl.innerText.includes("Connect")) statusEl.innerText = dict.status;
     }
 
     async function translateText(text, targetLang) {
-      const langNames = { zh: "中文", en: "English", jp: "日本語", kr: "한국어", ru: "Русский", fr: "Français", es: "Español" };
+      const langNames = { zh: "中文", en: "English", jp: "日本語" };
       return `[翻译至 ${langNames[targetLang]}]: ${text} (API占位)`;
     }
 
-    // --- 基础参数 ---
     const params = new URLSearchParams(window.location.search);
     const roomId = params.get('room');
     let localStream = null;
@@ -206,14 +195,11 @@
     let myId = null;
     let connectTimeout = null;
 
-    // --- 1. Firebase 初始化 ---
+    // --- Firebase 初始化 ---
     const firebaseConfig = {
       apiKey: "AIzaSyA2TSgfQ7S4dXZqENdlFegVa0eqMh5zpiY",
       authDomain: "riffchat-96b69.firebaseapp.com",
       projectId: "riffchat-96b69",
-      storageBucket: "riffchat-96b69.firebasestorage.app",
-      messagingSenderId: "597645980095",
-      appId: "1:597645980095:web:607eefd061c062fed7710a",
       databaseURL: "https://riffchat-96b69-default-rtdb.firebaseio.com/"
     };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -227,7 +213,7 @@
       }
     });
 
-    // --- 1.5 聊天发送与接收 (带未读红点逻辑) ---
+    // --- 聊天逻辑 ---
     function sendMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
@@ -243,7 +229,6 @@
         msgDiv.className = `msg ${data.sender === myId ? 'mine' : ''}`;
         msgDiv.innerText = data.text;
 
-        // 如果是对方发的消息
         if (data.sender !== myId) {
           const currentLang = document.getElementById('lang-select').value;
           const translated = await translateText(data.text, currentLang);
@@ -252,7 +237,6 @@
           transSpan.innerText = translated;
           msgDiv.appendChild(transSpan);
 
-          // 新消息红点逻辑：如果聊天框没打开，则增加未读并让按钮变红
           const chatOverlay = document.getElementById('chat-overlay');
           if (!chatOverlay.classList.contains('show')) {
             unreadCount++;
@@ -268,7 +252,7 @@
       });
     }
 
-    // --- 2. YouTube 同步播放器逻辑 (保持不变) ---
+    // --- YouTube 同步逻辑 ---
     let ytPlayer = null;
     let isYtReady = false;
     let isSyncing = false; 
@@ -289,17 +273,14 @@
     }
 
     function extractVideoID(url) {
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-      const match = url.match(regExp);
+      const match = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
       return (match && match[2].length === 11) ? match[2] : null;
     }
 
     function shareVideo() {
       if (!isYtReady || !peer) return;
-      const url = document.getElementById('yt-url').value;
-      const vidId = extractVideoID(url);
-      if (!vidId) return alert("解析失败 / Invalid Link");
-
+      const vidId = extractVideoID(document.getElementById('yt-url').value);
+      if (!vidId) return alert("无效链接 / Invalid Link");
       document.getElementById('player-placeholder').style.display = 'none';
       document.getElementById('yt-url').value = ''; 
       db.ref(`rooms/${roomId}/media`).set({ videoId: vidId, state: 'playing', time: 0, sender: myId });
@@ -309,9 +290,10 @@
       if (isSyncing || !peer) return; 
       let stateStr = event.data == YT.PlayerState.PLAYING ? 'playing' : (event.data == YT.PlayerState.PAUSED ? 'paused' : null);
       if (stateStr) {
-        let vidData = '';
-        try { vidData = ytPlayer.getVideoData().video_id; } catch(e){}
-        if (vidData) db.ref(`rooms/${roomId}/media`).set({ videoId: vidData, state: stateStr, time: ytPlayer.getCurrentTime(), sender: myId });
+        try { 
+          let vidData = ytPlayer.getVideoData().video_id; 
+          if (vidData) db.ref(`rooms/${roomId}/media`).set({ videoId: vidData, state: stateStr, time: ytPlayer.getCurrentTime(), sender: myId });
+        } catch(e){}
       }
     }
 
@@ -319,33 +301,30 @@
       db.ref(`rooms/${roomId}/media`).on('value', (snap) => {
         const data = snap.val();
         if (!data || !ytPlayer || !peer || data.sender === myId) return;
-        
         isSyncing = true; 
         document.getElementById('player-placeholder').style.display = 'none';
-
-        let currentVid = '';
-        try { currentVid = ytPlayer.getVideoData().video_id; } catch(e){}
-
-        if (data.videoId && data.videoId !== currentVid) {
-          ytPlayer.loadVideoById(data.videoId, data.time);
-          if (data.state === 'paused') { setTimeout(() => { ytPlayer.pauseVideo(); isSyncing = false; }, 800); return; }
-        } else {
-          const currentTime = ytPlayer.getCurrentTime() || 0;
-          if (Math.abs(currentTime - data.time) > 2) ytPlayer.seekTo(data.time, true);
-          if (data.state === 'playing') ytPlayer.playVideo();
-          else if (data.state === 'paused') ytPlayer.pauseVideo();
-        }
+        try {
+          let currentVid = ytPlayer.getVideoData().video_id;
+          if (data.videoId && data.videoId !== currentVid) {
+            ytPlayer.loadVideoById(data.videoId, data.time);
+            if (data.state === 'paused') { setTimeout(() => { ytPlayer.pauseVideo(); isSyncing = false; }, 800); return; }
+          } else {
+            if (Math.abs(ytPlayer.getCurrentTime() - data.time) > 2) ytPlayer.seekTo(data.time, true);
+            if (data.state === 'playing') ytPlayer.playVideo();
+            else if (data.state === 'paused') ytPlayer.pauseVideo();
+          }
+        } catch(e){}
         setTimeout(() => { isSyncing = false; }, 1000);
       });
     }
 
-    // --- 3. 视频通话核心 (保持不变) ---
+    // --- WebRTC 核心与稳定性修复 ---
     async function startLocalVideo() {
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
         document.getElementById('local').srcObject = localStream;
       } catch (err) {
-        alert("请开启摄像头和麦克风 / Please allow camera access");
+        alert("请开启摄像头和麦克风 / Please allow access");
         goHome();
       }
     }
@@ -357,60 +336,93 @@
       if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
       remoteVideo.pause();
       remoteVideo.srcObject = stream;
+      // 强制带声音播放
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
         playPromise.catch(error => {
-          document.getElementById('remote-status').innerText = "Click screen to play video";
+          console.warn("自动播放被拦截，需要用户交互", error);
+          document.getElementById('remote-status').innerText = "点击画面以播放声音/视频";
           document.getElementById('remote-status').style.display = 'block';
         });
       }
     }
 
+    // 全局点击解开浏览器声音限制
     document.addEventListener('click', () => {
       const rv = document.getElementById('remote');
       if (rv && rv.paused) { rv.muted = false; rv.play().catch(()=>{}); document.getElementById('remote-status').style.display = 'none'; }
-    }, { once: false });
+    });
 
     function initPeer() {
       if (!roomId) return goHome(); 
-      peer = new Peer({ config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] } });
+      // 核心修复1：引入了三个高稳定性的 Google STUN 节点，极大降低打不通的概率
+      peer = new Peer({ 
+        config: { 
+          'iceServers': [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }, 
+            { urls: 'stun:stun2.l.google.com:19302' }
+          ] 
+        } 
+      });
 
       peer.on('open', (id) => {
         myId = id;
-        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id });
+        db.ref(`rooms/${roomId}/peers/${id}`).set({ peerId: id, ts: Date.now() });
         db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
         
         listenChat(); 
         
         connectTimeout = setTimeout(() => {
           const statusEl = document.getElementById('remote-status');
-          if (statusEl.style.display !== 'none') statusEl.innerText = "Timeout, click Next ⏭";
-        }, 12000);
+          if (statusEl.style.display !== 'none') statusEl.innerText = "连接超时，请点击下一个 ⏭";
+        }, 15000);
       });
 
+      // 作为接听方
       peer.on('call', (call) => {
+        console.log("收到来电，准备接听...");
         call.answer(localStream);
         call.on('stream', showRemoteStream);
+        call.on('error', (err) => console.error("通话错误:", err));
       });
 
+      // 核心修复2：防竞态条件拨号逻辑
       db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
         const other = snap.val();
-        if (other.peerId !== myId && myId > other.peerId) {
-          setTimeout(() => {
-            const call = peer.call(other.peerId, localStream);
-            call.on('stream', showRemoteStream);
-          }, 1500); 
+        if (other.peerId !== myId) {
+          if (myId > other.peerId) {
+            // 延长了握手等待时间 (从1.5秒改到2.5秒)，确保对方 PeerJS 节点已经在服务器完全准备就绪！
+            setTimeout(() => {
+              console.log("主动拨打给队友...");
+              const call = peer.call(other.peerId, localStream);
+              if (call) {
+                call.on('stream', showRemoteStream);
+                call.on('error', (err) => console.error("拨打出错:", err));
+              }
+            }, 2500); 
+          }
         }
       });
 
-      db.ref(`rooms/${roomId}/peers`).on('child_removed', () => {
-        document.getElementById('remote').srcObject = null;
-        document.getElementById('remote-status').innerText = "Peer left, click Next ⏭";
-        document.getElementById('remote-status').style.display = 'block';
+      // 监听对方离开
+      db.ref(`rooms/${roomId}/peers`).on('child_removed', (snap) => {
+        if (snap.val().peerId !== myId) {
+          document.getElementById('remote').srcObject = null;
+          document.getElementById('remote-status').innerText = "队友已离开，请点击下一个 ⏭";
+          document.getElementById('remote-status').style.display = 'block';
+        }
+      });
+
+      // 捕获不可用错误，防止死机
+      peer.on('error', (err) => {
+        console.warn("Peer 内部警报:", err.type);
+        if(err.type === 'peer-unavailable') {
+          console.log("对方节点尚未准备好，拦截了一次黑屏崩溃");
+        }
       });
     }
 
-    // --- 4. 清理与跳转 ---
     function cleanup() {
       if (connectTimeout) clearTimeout(connectTimeout);
       if (peer) { db.ref(`rooms/${roomId}/peers/${myId}`).remove(); peer.destroy(); }
