@@ -34,9 +34,10 @@
     
     .video-box { flex:1; position:relative; background:#111; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #222; }
     video { width:100%; height:100%; object-fit:cover; background: #000; pointer-events: none; }
+    
+    /* 状态提示文字 */
     #remote-status { position: absolute; z-index: 10; background: rgba(0,0,0,0.7); padding: 12px 20px; border-radius: 10px; text-align: center; font-size: 14px; font-weight: bold; }
     
-    /* 聊天开关悬浮按钮 */
     #chat-toggle-btn {
       position: absolute; bottom: 15px; right: 15px; z-index: 60; 
       background: rgba(100, 100, 100, 0.8); color: white; border: 1px solid rgba(255,255,255,0.2);
@@ -47,7 +48,6 @@
     #chat-toggle-btn.has-new { background: #dc3545; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
-    /* 半透明悬浮聊天区 */
     #chat-overlay { 
       position: absolute; top: 0; right: -100%; 
       width: 100%; max-width: 380px; height: 100%; 
@@ -59,7 +59,6 @@
     }
     #chat-overlay.show { right: 0; }
 
-    /* 聊天框顶部栏与关闭按钮 */
     #chat-header {
       display: flex; justify-content: space-between; align-items: center;
       padding: 12px 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -71,7 +70,7 @@
     #chat-messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 14px; display: flex; flex-direction: column; gap: 10px; }
     .msg { background: rgba(50, 50, 50, 0.8); padding: 10px 14px; border-radius: 12px; max-width: 85%; align-self: flex-start; line-height: 1.4; word-break: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
     .msg.mine { background: rgba(0, 123, 255, 0.85); align-self: flex-end; }
-    .translation-label { font-size: 11px; color: #ffcc00; margin-top: 6px; display: block; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 6px; }
+    .translation-label { font-size: 12px; color: #ffcc00; margin-top: 6px; display: block; border-top: 1px dashed rgba(255,255,255,0.3); padding-top: 6px; font-style: italic;}
     
     #chat-input-area { padding: 12px; background: rgba(0, 0, 0, 0.5); display: flex; gap: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
     #chat-input { flex: 1; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.1); padding: 10px 15px; border-radius: 20px; color: white; outline: none; font-size: 14px;}
@@ -117,7 +116,7 @@
   <div id="main-content">
     <div id="camera-section">
       <div class="video-box">
-        <div id="remote-status">正在连接队友摄像头...</div>
+        <div id="remote-status">正在准备...</div>
         <video id="remote" autoplay playsinline webkit-playsinline></video>
       </div>
       <div class="video-box">
@@ -148,37 +147,29 @@
   <script>
     // --- UI 与多语言逻辑 ---
     let unreadCount = 0;
+    let currentVideoStatus = 'waitPartner';
 
-    // 扩充后的多语言字典（新增了悬浮按钮的翻译联动）
     const i18n = {
-      zh: { next: "下一个 ⏭", exit: "退出大厅", share: "全屏同步", status: "正在连接队友...", chatTitle: "房间聊天", placeholder: "输入内容...", send: "发送", openChat: "💬 展开聊天", newMsg: "💬 新消息" },
-      en: { next: "Next ⏭", exit: "Exit", share: "Sync", status: "Connecting...", chatTitle: "Room Chat", placeholder: "Type...", send: "Send", openChat: "💬 Open Chat", newMsg: "💬 New Msg" },
-      jp: { next: "次へ ⏭", exit: "退出", share: "同期", status: "接続中...", chatTitle: "チャット", placeholder: "入力...", send: "送信", openChat: "💬 チャット", newMsg: "💬 新着" },
-      ko: { next: "다음 ⏭", exit: "나가기", share: "동기화", status: "연결 중...", chatTitle: "채팅", placeholder: "입력...", send: "전송", openChat: "💬 채팅 열기", newMsg: "💬 새 메시지" },
-      es: { next: "Siguiente ⏭", exit: "Salir", share: "Sincronizar", status: "Conectando...", chatTitle: "Chat", placeholder: "Escribe...", send: "Enviar", openChat: "💬 Abrir Chat", newMsg: "💬 Nuevo Msj" }
+      zh: { next: "下一个 ⏭", exit: "退出大厅", share: "全屏同步", waitPartner: "等待陌生人加入...", connecting: "发现队友，正在连接...", timeout: "连接超时，请点击下一个 ⏭", left: "队友已离开，请点击下一个 ⏭", chatTitle: "房间聊天", placeholder: "输入内容...", send: "发送", openChat: "💬 展开聊天", newMsg: "💬 新消息" },
+      en: { next: "Next ⏭", exit: "Exit", share: "Sync", waitPartner: "Waiting for stranger...", connecting: "Partner found, connecting...", timeout: "Timeout, Click Next ⏭", left: "Partner left, Click Next ⏭", chatTitle: "Room Chat", placeholder: "Type...", send: "Send", openChat: "💬 Open Chat", newMsg: "💬 New Msg" },
+      jp: { next: "次へ ⏭", exit: "退出", share: "同期", waitPartner: "待機中...", connecting: "接続中...", timeout: "タイムアウト、次へ ⏭", left: "退出しました、次へ ⏭", chatTitle: "チャット", placeholder: "入力...", send: "送信", openChat: "💬 チャット", newMsg: "💬 新着" },
+      ko: { next: "다음 ⏭", exit: "나가기", share: "동기화", waitPartner: "상대방 기다리는 중...", connecting: "연결 중...", timeout: "연결 시간 초과, 다음 ⏭", left: "상대방이 떠났습니다, 다음 ⏭", chatTitle: "채팅", placeholder: "입력...", send: "전송", openChat: "💬 채팅 열기", newMsg: "💬 새 메시지" },
+      es: { next: "Siguiente ⏭", exit: "Salir", share: "Sincronizar", waitPartner: "Esperando...", connecting: "Conectando...", timeout: "Tiempo agotado, Siguiente ⏭", left: "Se desconectó, Siguiente ⏭", chatTitle: "Chat", placeholder: "Escribe...", send: "Enviar", openChat: "💬 Abrir Chat", newMsg: "💬 Nuevo Msj" }
     };
 
-    // 动态更新悬浮按钮文字的函数
     function updateToggleBtnText() {
       const lang = document.getElementById('lang-select').value;
       const dict = i18n[lang] || i18n.zh;
       const toggleBtn = document.getElementById('chat-toggle-btn');
-      
-      if (unreadCount > 0) {
-        toggleBtn.innerText = `${dict.newMsg} (${unreadCount})`;
-      } else {
-        toggleBtn.innerText = dict.openChat;
-      }
+      if (unreadCount > 0) toggleBtn.innerText = `${dict.newMsg} (${unreadCount})`;
+      else toggleBtn.innerText = dict.openChat;
     }
     
     function toggleChat() {
       const chatOverlay = document.getElementById('chat-overlay');
       const toggleBtn = document.getElementById('chat-toggle-btn');
-      
       chatOverlay.classList.toggle('show');
-      
       if (chatOverlay.classList.contains('show')) {
-        // 【核心修复1】如果聊天框打开了，直接隐藏悬浮按钮，杜绝和发送键重叠！
         toggleBtn.style.display = 'none';
         toggleBtn.classList.remove('has-new');
         unreadCount = 0;
@@ -186,38 +177,55 @@
         const container = document.getElementById('chat-messages');
         container.scrollTop = container.scrollHeight;
       } else {
-        // 关闭时恢复显示悬浮按钮
         toggleBtn.style.display = 'block';
         updateToggleBtnText();
+      }
+    }
+
+    function setRemoteStatus(statusKey) {
+      currentVideoStatus = statusKey;
+      const lang = document.getElementById('lang-select').value;
+      const dict = i18n[lang] || i18n.zh;
+      const el = document.getElementById('remote-status');
+      if (statusKey === 'hidden') {
+        el.style.display = 'none';
+      } else {
+        el.innerText = dict[statusKey];
+        el.style.display = 'block';
       }
     }
 
     function changeLanguage() {
       const lang = document.getElementById('lang-select').value;
       const dict = i18n[lang] || i18n.zh;
-      
-      // 更新所有界面文字
       document.getElementById('ui-next').innerText = dict.next;
       document.getElementById('ui-exit').innerText = dict.exit;
       document.getElementById('ui-share').innerText = dict.share;
       document.getElementById('ui-chat-title').innerText = dict.chatTitle;
       document.getElementById('chat-input').placeholder = dict.placeholder;
       document.getElementById('send-btn').innerText = dict.send;
-      
-      const statusEl = document.getElementById('remote-status');
-      // 避免覆盖掉报错提示信息，仅当状态是“连接中”时才替换语言
-      if(statusEl.innerText.includes("连") || statusEl.innerText.includes("Connect") || statusEl.innerText.includes("続") || statusEl.innerText.includes("중") || statusEl.innerText.includes("Conectando")) {
-        statusEl.innerText = dict.status;
-      }
-
-      // 【核心修复2】切换语言时，联动更新悬浮按钮上的文字
+      setRemoteStatus(currentVideoStatus); 
       updateToggleBtnText();
     }
 
+    // --- 【真正的翻译功能】接入免费的 Google 翻译接口 ---
     async function translateText(text, targetLang) {
-      // 占位功能也加上了新语言的映射
-      const langNames = { zh: "中文", en: "English", jp: "日本語", ko: "한국어", es: "Español" };
-      return `[翻译至 ${langNames[targetLang] || '未知语言'}]: ${text} (API占位)`;
+      // 将我们下拉菜单的语言代码映射成 Google 翻译需要的标准代码
+      const langMap = { zh: "zh-CN", en: "en", jp: "ja", ko: "ko", es: "es" };
+      const googleLangCode = langMap[targetLang] || "en";
+      
+      try {
+        // 利用无需鉴权的客户端翻译接口 (注意：此接口适用于学习和轻量使用)
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${googleLangCode}&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        // 解析返回的数组拿到最终翻译文本
+        const translatedResult = data[0].map(item => item[0]).join('');
+        return `A: ${translatedResult}`;
+      } catch (err) {
+        console.error("翻译失败:", err);
+        return `[翻译服务暂时不可用]`;
+      }
     }
 
     const params = new URLSearchParams(window.location.search);
@@ -263,18 +271,21 @@
 
         if (data.sender !== myId) {
           const currentLang = document.getElementById('lang-select').value;
-          const translated = await translateText(data.text, currentLang);
           const transSpan = document.createElement('span');
           transSpan.className = 'translation-label';
-          transSpan.innerText = translated;
+          transSpan.innerText = '正在翻译...'; // 翻译有个小延迟，先显示这个
           msgDiv.appendChild(transSpan);
+          
+          // 等待真正的 API 返回翻译结果
+          translateText(data.text, currentLang).then(translated => {
+            transSpan.innerText = translated;
+          });
 
           const chatOverlay = document.getElementById('chat-overlay');
           if (!chatOverlay.classList.contains('show')) {
             unreadCount++;
             const toggleBtn = document.getElementById('chat-toggle-btn');
             toggleBtn.classList.add('has-new');
-            // 收到新消息时动态刷新带有语言本地化的数字
             updateToggleBtnText(); 
           }
         }
@@ -314,40 +325,69 @@
       if (!isYtReady || !peer) return;
       const vidId = extractVideoID(document.getElementById('yt-url').value);
       if (!vidId) return alert("无效链接 / Invalid Link");
+      
       document.getElementById('player-placeholder').style.display = 'none';
       document.getElementById('yt-url').value = ''; 
+      
+      // 【核心修复1】：分享者自己也必须加载视频，否则会黑屏
+      ytPlayer.loadVideoById(vidId, 0);
+      
       db.ref(`rooms/${roomId}/media`).set({ videoId: vidId, state: 'playing', time: 0, sender: myId });
     }
 
+    // 【核心修复2】：加入防抖计时器 (Debounce Timer)
+    let stateChangeTimer = null; 
+    
     function onPlayerStateChange(event) {
       if (isSyncing || !peer) return; 
       let stateStr = event.data == YT.PlayerState.PLAYING ? 'playing' : (event.data == YT.PlayerState.PAUSED ? 'paused' : null);
       if (stateStr) {
-        try { 
-          let vidData = ytPlayer.getVideoData().video_id; 
-          if (vidData) db.ref(`rooms/${roomId}/media`).set({ videoId: vidData, state: stateStr, time: ytPlayer.getCurrentTime(), sender: myId });
-        } catch(e){}
+        // 清除上一次未发出的状态（防抖：如果频繁乱点，只取最后一次稳态）
+        if (stateChangeTimer) clearTimeout(stateChangeTimer);
+        
+        stateChangeTimer = setTimeout(() => {
+          try { 
+            let vidData = ytPlayer.getVideoData().video_id; 
+            if (vidData) db.ref(`rooms/${roomId}/media`).set({ videoId: vidData, state: stateStr, time: ytPlayer.getCurrentTime(), sender: myId });
+          } catch(e){}
+        }, 300); // 等待 300 毫秒的稳定期再同步
       }
     }
 
     function listenToMediaSync() {
       db.ref(`rooms/${roomId}/media`).on('value', (snap) => {
         const data = snap.val();
+        // 忽略自己发出的指令，防止死循环
         if (!data || !ytPlayer || !peer || data.sender === myId) return;
+        
         isSyncing = true; 
         document.getElementById('player-placeholder').style.display = 'none';
+        
         try {
-          let currentVid = ytPlayer.getVideoData().video_id;
+          let currentVid = ytPlayer.getVideoData()?.video_id;
           if (data.videoId && data.videoId !== currentVid) {
+            // 切歌（换新视频）
             ytPlayer.loadVideoById(data.videoId, data.time);
-            if (data.state === 'paused') { setTimeout(() => { ytPlayer.pauseVideo(); isSyncing = false; }, 800); return; }
+            if (data.state === 'paused') { 
+              setTimeout(() => { ytPlayer.pauseVideo(); }, 500); 
+            }
           } else {
-            if (Math.abs(ytPlayer.getCurrentTime() - data.time) > 2) ytPlayer.seekTo(data.time, true);
-            if (data.state === 'playing') ytPlayer.playVideo();
-            else if (data.state === 'paused') ytPlayer.pauseVideo();
+            // 同一个视频的暂停/播放/拖拽进度同步
+            let timeDiff = Math.abs(ytPlayer.getCurrentTime() - data.time);
+            if (timeDiff > 1.5) ytPlayer.seekTo(data.time, true);
+            
+            // 优化了校验逻辑：如果对方让你播放，而你已经是播放状态，就不重复操作了
+            let currentState = ytPlayer.getPlayerState();
+            if (data.state === 'playing' && currentState !== YT.PlayerState.PLAYING) {
+              ytPlayer.playVideo();
+            } else if (data.state === 'paused' && currentState !== YT.PlayerState.PAUSED) {
+              ytPlayer.pauseVideo();
+            }
           }
         } catch(e){}
-        setTimeout(() => { isSyncing = false; }, 1000);
+        
+        // 操作执行完毕，0.5秒后解除锁定
+        setTimeout(() => { isSyncing = false; }, 500);
       });
     }
 
@@ -365,15 +405,15 @@
     function showRemoteStream(stream) {
       if (connectTimeout) clearTimeout(connectTimeout); 
       const remoteVideo = document.getElementById('remote');
-      document.getElementById('remote-status').style.display = 'none';
+      setRemoteStatus('hidden');
+      
       if (remoteVideo.srcObject && remoteVideo.srcObject.id === stream.id) return;
       remoteVideo.pause();
       remoteVideo.srcObject = stream;
       const playPromise = remoteVideo.play();
       if (playPromise !== undefined) {
         playPromise.catch(error => {
-          console.warn("自动播放被拦截，需要用户交互", error);
-          document.getElementById('remote-status').innerText = "点击画面以播放声音/视频";
+          document.getElementById('remote-status').innerText = "点击画面播放声音";
           document.getElementById('remote-status').style.display = 'block';
         });
       }
@@ -381,7 +421,7 @@
 
     document.addEventListener('click', () => {
       const rv = document.getElementById('remote');
-      if (rv && rv.paused) { rv.muted = false; rv.play().catch(()=>{}); document.getElementById('remote-status').style.display = 'none'; }
+      if (rv && rv.paused) { rv.muted = false; rv.play().catch(()=>{}); if(currentVideoStatus === 'hidden') document.getElementById('remote-status').style.display = 'none'; }
     });
 
     function initPeer() {
@@ -402,33 +442,28 @@
         db.ref(`rooms/${roomId}/peers/${id}`).onDisconnect().remove();
         
         listenChat(); 
-        
-        connectTimeout = setTimeout(() => {
-          const statusEl = document.getElementById('remote-status');
-          if (statusEl.style.display !== 'none') {
-            // 根据语言显示超时信息
-            const lang = document.getElementById('lang-select').value;
-            statusEl.innerText = lang === 'en' ? "Connection Timeout, Click Next ⏭" : "连接超时，请点击下一个 ⏭";
-          }
-        }, 15000);
+        setRemoteStatus('waitPartner');
       });
 
       peer.on('call', (call) => {
         call.answer(localStream);
         call.on('stream', showRemoteStream);
-        call.on('error', (err) => console.error("通话错误:", err));
       });
 
       db.ref(`rooms/${roomId}/peers`).on('child_added', (snap) => {
         const other = snap.val();
         if (other.peerId !== myId) {
+          setRemoteStatus('connecting');
+          
+          if (connectTimeout) clearTimeout(connectTimeout);
+          connectTimeout = setTimeout(() => {
+            if (currentVideoStatus === 'connecting') setRemoteStatus('timeout');
+          }, 15000);
+
           if (myId > other.peerId) {
             setTimeout(() => {
               const call = peer.call(other.peerId, localStream);
-              if (call) {
-                call.on('stream', showRemoteStream);
-                call.on('error', (err) => console.error("拨打出错:", err));
-              }
+              if (call) call.on('stream', showRemoteStream);
             }, 2500); 
           }
         }
@@ -437,15 +472,8 @@
       db.ref(`rooms/${roomId}/peers`).on('child_removed', (snap) => {
         if (snap.val().peerId !== myId) {
           document.getElementById('remote').srcObject = null;
-          const lang = document.getElementById('lang-select').value;
-          document.getElementById('remote-status').innerText = lang === 'en' ? "Partner left, Click Next ⏭" : "队友已离开，请点击下一个 ⏭";
-          document.getElementById('remote-status').style.display = 'block';
-        }
-      });
-
-      peer.on('error', (err) => {
-        if(err.type === 'peer-unavailable') {
-          console.log("对方节点尚未准备好，拦截了一次黑屏崩溃");
+          setRemoteStatus('left');
+          if (connectTimeout) clearTimeout(connectTimeout);
         }
       });
     }
